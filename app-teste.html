@@ -27,32 +27,37 @@ h2 { font-size: 1rem; margin: 0; }
 .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 
 .top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--accent); color: var(--accent-fg);
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
   padding-block: .8rem; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
 .top b { font-weight: 700; letter-spacing: .01em; }
+.role { font-size: .78rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; border: 1px solid currentColor; border-radius: 999px; padding: 1px 9px; opacity: .9; white-space: nowrap; }
 main { max-width: 720px; margin: 0 auto; padding-block: 16px 96px;
   padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
   display: flex; flex-direction: column; gap: 14px; }
 .tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; display: flex; background: var(--surface); border-top: 1px solid var(--line);
   padding-bottom: env(safe-area-inset-bottom, 0px); padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px); }
-.tabs button { flex: 1; background: none; border: 0; font: 600 .95rem var(--sans); color: var(--muted); padding: .9rem 0; cursor: pointer; }
+.tabs button { flex: 1; background: none; border: 0; font: 600 .92rem var(--sans); color: var(--muted); padding: .9rem 0; cursor: pointer; }
 .tabs button[aria-current="true"] { color: var(--accent); box-shadow: inset 0 3px 0 var(--accent); }
 
-.head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
 .btn { font: 600 1rem var(--sans); background: var(--accent); color: var(--accent-fg); border: 0; border-radius: 8px; padding: .8rem 1rem; cursor: pointer; text-align: center; }
 .btn.sm { padding: .5rem .85rem; font-size: .92rem; }
 .btn.ghost { background: transparent; color: var(--accent); border: 1px solid var(--line); }
 .btn.danger { background: transparent; color: var(--bad); border: 1px solid var(--bad); }
 .btn.danger.armed { background: var(--bad); color: var(--surface); }
 .btn:disabled { opacity: .55; cursor: default; }
-.link { background: none; border: 0; padding: 0; font: inherit; color: var(--accent); cursor: pointer; font-weight: 600; }
+.link { background: none; border: 0; padding: 0; font: inherit; color: var(--accent); cursor: pointer; font-weight: 600; text-align: left; }
 .link.bad { color: var(--bad); font-size: .85rem; font-weight: 500; }
+.link.sm { font-size: .85rem; font-weight: 500; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-input, textarea { font: inherit; color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: .7rem .75rem; width: 100%; min-width: 0; }
+input, textarea, select { font: inherit; color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: .7rem .75rem; width: 100%; min-width: 0; }
 label { display: flex; flex-direction: column; gap: 5px; font-weight: 600; font-size: .92rem; }
 .hint { font-weight: 400; font-size: .85rem; color: var(--muted); }
 .hint.bad { color: var(--bad); }
 form { display: flex; flex-direction: column; gap: 14px; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 500px) { .two { grid-template-columns: 1fr; } }
 
 .list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 .item { width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; background: var(--surface); border: 1px solid var(--line);
@@ -73,6 +78,7 @@ form { display: flex; flex-direction: column; gap: 14px; }
 
 .parts { margin: 4px 0 0; padding-left: 18px; font-size: .92rem; }
 .summary { margin: 4px 0 0; white-space: pre-wrap; }
+.actions { display: flex; gap: 16px; flex-wrap: wrap; }
 fieldset { border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin: 0; display: flex; flex-direction: column; gap: 8px; }
 legend { font-weight: 600; padding: 0 4px; }
 .part-row { display: grid; grid-template-columns: 1fr 1.5fr 4.2rem 2.6rem; gap: 6px; }
@@ -88,36 +94,51 @@ legend { font-weight: 600; padding: 0 4px; }
 .empty { text-align: center; padding: 28px 12px; color: var(--muted); display: flex; flex-direction: column; gap: 12px; align-items: center; }
 </style>
 
-<div class="top"><b>Manutenção de Impressoras</b></div>
+<div class="top"><b>Manutenção de Impressoras</b><span class="role" id="role" hidden></span></div>
 <main id="view" aria-live="polite"><p class="muted">Carregando dados…</p></main>
 <nav class="tabs">
-  <button id="tab-printers" type="button" aria-current="true">Impressoras</button>
-  <button id="tab-parts" type="button" aria-current="false">Vida das peças</button>
+  <button id="tab-customers" type="button" aria-current="true">Clientes</button>
+  <button id="tab-printers" type="button" aria-current="false">Impressoras</button>
+  <button id="tab-parts" type="button" aria-current="false">Peças</button>
 </nav>
 
 <script>
 (() => {
+  /*
+   * Dados:
+   *  customers/{id}                 clientes (só administrador altera)
+   *  printers/{id}                  impressoras, com customerId (só administrador altera)
+   *  maintenances/{id}              manutenções antigas (só administrador altera)
+   *  maint/{userId}                 ficha de cada técnico
+   *  maint/{userId}/items/{id}      manutenções registradas por esse técnico
+   */
   const $view = document.getElementById('view');
   const nf = new Intl.NumberFormat('pt-BR');
   const fmt = (n) => (n == null || isNaN(n) ? '—' : nf.format(n));
   const fdate = (d) => (d ? d.slice(0, 10).split('-').reverse().join('/') : '—');
   const today = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const byName = (a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR');
 
-  let db = null;
-  let canWrite = true;
-  let printers = [];   // {id, serial, model, customer, location, installCounter}
-  let maints = [];     // {id, printerId, date, counter, technician, summary, parts:[{code, description, qty}]}
-  let loaded = { p: false, m: false };
-  let state = { view: 'printers', id: null, q: '', qParts: '' };
+  let db = null, user = null, myId = null, myName = '';
+  let isAdmin = false;
+  let customers = [], printers = [], legacy = [];
+  const techItems = {};            // userId -> [maintenances]
+  const techSubs = {};             // userId -> unsubscribe
+  const loaded = { c: false, p: false, l: false, t: false };
+  let state = { view: 'customers', id: null, back: null, q: '', qP: '', qParts: '' };
   let errorMsg = '';
 
   // ---------- cálculos ----------
-  const maintsOf = (pid) => maints.filter((m) => m.printerId === pid).sort((a, b) => b.counter - a.counter || (b.date > a.date ? 1 : -1));
+  const allMaints = () => legacy.concat(...Object.values(techItems));
+  const maintsOf = (pid) => allMaints().filter((m) => m.printerId === pid).sort((a, b) => b.counter - a.counter || (b.date > a.date ? 1 : -1));
   const currentCounter = (p) => { const ms = maintsOf(p.id); return ms.length ? ms[0].counter : p.installCounter; };
+  const customerOf = (p) => customers.find((c) => c.id === p.customerId);
+  const customerName = (p) => customerOf(p)?.name || p.customer || 'Sem cliente';
+  const printersOf = (cid) => printers.filter((p) => p.customerId === cid);
   function partLife(pid) {
     const out = {};
-    const ms = pid ? maintsOf(pid) : maints.slice().sort((a, b) => b.counter - a.counter);
+    const ms = pid ? maintsOf(pid) : allMaints().sort((a, b) => b.counter - a.counter);
     for (const m of ms) for (const pt of m.parts || []) {
       const key = m.printerId + '|' + pt.code;
       if (!out[key]) out[key] = { printerId: m.printerId, code: pt.code, description: pt.description, date: m.date, at: m.counter };
@@ -129,75 +150,185 @@ legend { font-weight: 600; padding: 0 4px; }
   }
   function knownParts() {
     const map = {};
-    for (const m of maints) for (const pt of m.parts || []) if (pt.code && !map[pt.code]) map[pt.code] = pt.description || '';
+    for (const m of allMaints()) for (const pt of m.parts || []) if (pt.code && !map[pt.code]) map[pt.code] = pt.description || '';
     return map;
   }
 
   // ---------- navegação ----------
-  function go(view, id = null) { state.view = view; state.id = id; errorMsg = ''; render(); window.scrollTo(0, 0); }
+  function go(view, id = null, back = null) { state.view = view; state.id = id; state.back = back; errorMsg = ''; render(); window.scrollTo(0, 0); }
+  const tabOf = (v) => (['printers', 'printer', 'printerForm', 'maintForm'].includes(v) ? 'printers' : v === 'parts' ? 'parts' : 'customers');
+  document.getElementById('tab-customers').onclick = () => go('customers');
   document.getElementById('tab-printers').onclick = () => go('printers');
   document.getElementById('tab-parts').onclick = () => go('parts');
 
   function render() {
-    const tabPrinters = state.view !== 'parts';
-    document.getElementById('tab-printers').setAttribute('aria-current', String(tabPrinters));
-    document.getElementById('tab-parts').setAttribute('aria-current', String(!tabPrinters));
-    if (!loaded.p || !loaded.m) {
+    const tab = state.back?.view && ['printer', 'printerForm', 'maintForm'].includes(state.view) && tabOf(state.back.view) === 'customers' ? 'customers' : tabOf(state.view);
+    for (const t of ['customers', 'printers', 'parts']) document.getElementById('tab-' + t).setAttribute('aria-current', String(t === tab));
+    if (!loaded.c || !loaded.p || !loaded.l || !loaded.t) {
       $view.innerHTML = errorMsg ? `<div class="notice bad">${esc(errorMsg)}</div>` : '<p class="muted">Carregando dados…</p>';
       return;
     }
-    ({ printers: viewPrinters, printer: viewPrinter, printerForm: viewPrinterForm, maintForm: viewMaintForm, parts: viewParts }[state.view] || viewPrinters)();
+    const views = { customers: viewCustomers, customer: viewCustomer, customerForm: viewCustomerForm, printers: viewPrinters, printer: viewPrinter, printerForm: viewPrinterForm, maintForm: viewMaintForm, parts: viewParts };
+    (views[state.view] || viewCustomers)();
+  }
+  function bindSearch(id, key, redraw) {
+    const q = document.getElementById(id);
+    if (q) q.oninput = () => { state[key] = q.value; const pos = q.selectionStart; redraw(); const nq = document.getElementById(id); nq.focus(); nq.setSelectionRange(pos, pos); };
+  }
+  // Botão que pede um segundo toque para confirmar (o app não usa janelas de confirmação)
+  function arm(btn, confirmLabel, action) {
+    btn.onclick = async () => {
+      if (btn.dataset.armed !== '1') { btn.dataset.armed = '1'; btn.classList.add('armed'); btn.textContent = confirmLabel; return; }
+      btn.disabled = true;
+      try { await action(); } catch (err) { btn.disabled = false; showErr(dbErr(err)); }
+    };
   }
 
-  // ---------- tela: lista de impressoras ----------
-  function viewPrinters() {
+  // ---------- CLIENTES: lista ----------
+  function viewCustomers() {
     const t = state.q.trim().toLowerCase();
-    const rows = printers
-      .filter((p) => !t || [p.serial, p.model, p.customer, p.location].some((v) => (v || '').toLowerCase().includes(t)))
-      .sort((a, b) => (a.customer || '').localeCompare(b.customer || '') || a.serial.localeCompare(b.serial));
+    const rows = customers.filter((c) => !t || [c.name, c.doc, c.phone, c.city, c.contact].some((v) => (v || '').toLowerCase().includes(t))).sort(byName);
+    const loose = printers.filter((p) => !customerOf(p));
     $view.innerHTML = `
-      <div class="head"><h1>Impressoras</h1>${canWrite ? '<button class="btn sm" id="new">+ Nova impressora</button>' : ''}</div>
-      ${printers.length ? `<input id="q" type="search" placeholder="Buscar por série, modelo, cliente ou local" value="${esc(state.q)}">` : ''}
-      ${printers.length === 0 ? `<div class="empty"><p>Nenhuma impressora cadastrada ainda.</p>${canWrite ? '<button class="btn" id="new2">Cadastrar a primeira impressora</button>' : ''}</div>`
+      <div class="head"><h1>Clientes</h1>${isAdmin ? '<button class="btn sm" id="new">+ Novo cliente</button>' : ''}</div>
+      ${customers.length ? `<input id="q" type="search" placeholder="Buscar por nome, CPF/CNPJ, telefone ou cidade" value="${esc(state.q)}">` : ''}
+      ${isAdmin && loose.length ? `<div class="notice">${loose.length} impressora${loose.length === 1 ? ' está' : 's estão'} sem cliente. Abra a aba <b>Impressoras</b> e use <b>Editar</b> para escolher o cliente.</div>` : ''}
+      ${customers.length === 0 ? `<div class="empty"><p>Nenhum cliente cadastrado ainda.</p>${isAdmin ? '<button class="btn" id="new2">Cadastrar o primeiro cliente</button>' : '<p>O administrador cadastra os clientes.</p>'}</div>`
         : rows.length === 0 ? '<p class="muted">Nada encontrado.</p>'
-        : `<ul class="list">${rows.map((p) => {
-            const ms = maintsOf(p.id);
-            return `<li><button class="item" data-id="${p.id}">
-              <div class="row"><strong>${esc(p.customer || 'Sem cliente')}</strong><span class="chip num">${esc(p.serial)}</span></div>
-              <div class="muted">${esc([p.model, p.location].filter(Boolean).join(' · ') || '—')}</div>
-              <div class="meta"><span>Contador: <span class="num">${fmt(currentCounter(p))}</span></span><span>Última visita: ${fdate(ms[0]?.date)}</span><span>${ms.length} visita${ms.length === 1 ? '' : 's'}</span></div>
+        : `<ul class="list">${rows.map((c) => {
+            const n = printersOf(c.id).length;
+            return `<li><button class="item" data-id="${c.id}">
+              <div class="row"><strong>${esc(c.name)}</strong><span class="chip">${n} impressora${n === 1 ? '' : 's'}</span></div>
+              <div class="meta">${c.phone ? `<span>${esc(c.phone)}</span>` : ''}${c.city ? `<span>${esc(c.city)}</span>` : ''}${c.contact ? `<span>Contato: ${esc(c.contact)}</span>` : ''}</div>
             </button></li>`;
           }).join('')}</ul>`}`;
-    const q = document.getElementById('q');
-    if (q) q.oninput = () => { state.q = q.value; const pos = q.selectionStart; viewPrinters(); const nq = document.getElementById('q'); nq.focus(); nq.setSelectionRange(pos, pos); };
-    for (const id of ['new', 'new2']) { const b = document.getElementById(id); if (b) b.onclick = () => go('printerForm'); }
-    $view.querySelectorAll('.item').forEach((b) => (b.onclick = () => go('printer', b.dataset.id)));
+    bindSearch('q', 'q', viewCustomers);
+    for (const id of ['new', 'new2']) { const b = document.getElementById(id); if (b) b.onclick = () => go('customerForm', null, { view: 'customers' }); }
+    $view.querySelectorAll('.item').forEach((b) => (b.onclick = () => go('customer', b.dataset.id)));
   }
 
-  // ---------- tela: detalhe da impressora ----------
+  // ---------- CLIENTES: perfil ----------
+  function viewCustomer() {
+    const c = customers.find((x) => x.id === state.id);
+    if (!c) return go('customers');
+    const ps = printersOf(c.id).sort((a, b) => a.serial.localeCompare(b.serial));
+    const fact = (label, v) => (v ? `<dt>${label}</dt><dd>${esc(v)}</dd>` : '');
+    $view.innerHTML = `
+      <button class="link" id="back">← Clientes</button>
+      <section class="panel">
+        <div class="row"><h1>${esc(c.name)}</h1>${isAdmin ? '<button class="link" id="edit">Editar dados</button>' : ''}</div>
+        <dl class="facts">
+          ${fact('CPF/CNPJ', c.doc)}${fact('Telefone', c.phone)}${fact('E-mail', c.email)}${fact('Pessoa de contato', c.contact)}
+          ${fact('Endereço', c.address)}${fact('Cidade', c.city)}
+        </dl>
+        ${c.notes ? `<p class="summary muted">${esc(c.notes)}</p>` : ''}
+        ${!c.doc && !c.phone && !c.email && !c.address && !c.city && !c.contact && !c.notes ? '<p class="muted">Nenhum dado de contato cadastrado.</p>' : ''}
+      </section>
+      <div class="head"><h2>Impressoras (${ps.length})</h2>${isAdmin ? '<button class="btn sm" id="addp">+ Adicionar impressora</button>' : ''}</div>
+      ${ps.length === 0 ? '<p class="muted">Nenhuma impressora neste cliente.</p>' : printerList(ps, false)}`;
+    document.getElementById('back').onclick = () => go('customers');
+    const e = document.getElementById('edit'); if (e) e.onclick = () => go('customerForm', c.id, { view: 'customer', id: c.id });
+    const a = document.getElementById('addp'); if (a) a.onclick = () => { state.newFor = c.id; go('printerForm', null, { view: 'customer', id: c.id }); };
+    bindPrinterItems({ view: 'customer', id: c.id });
+  }
+
+  // ---------- CLIENTES: cadastro / edição ----------
+  function viewCustomerForm() {
+    if (!isAdmin) return go('customers');
+    const c = state.id ? customers.find((x) => x.id === state.id) : null;
+    const f = (id, label, v, extra = '') => `<label>${label}<input id="c-${id}" value="${esc(v)}" ${extra}></label>`;
+    $view.innerHTML = `
+      <h1>${c ? 'Editar cliente' : 'Novo cliente'}</h1>
+      <form id="f">
+        ${f('name', 'Nome ou razão social *', c?.name, 'required')}
+        <div class="two">${f('doc', 'CPF ou CNPJ', c?.doc, 'inputmode="numeric"')}${f('phone', 'Telefone / WhatsApp', c?.phone, 'type="tel" inputmode="tel"')}</div>
+        <div class="two">${f('email', 'E-mail', c?.email, 'type="email"')}${f('contact', 'Pessoa de contato', c?.contact)}</div>
+        ${f('address', 'Endereço', c?.address, 'placeholder="Rua, número, bairro"')}
+        ${f('city', 'Cidade', c?.city)}
+        <label>Observações<textarea id="c-notes" rows="3" placeholder="Horário de atendimento, contrato, referências…">${esc(c?.notes)}</textarea></label>
+        <div id="err"></div>
+        <button class="btn" id="save">Salvar</button>
+        <button class="btn ghost" type="button" id="cancel">Cancelar</button>
+        ${c ? '<button class="btn danger" type="button" id="del">Excluir cliente</button>' : ''}
+      </form>`;
+    const back = () => (state.back ? go(state.back.view, state.back.id) : go('customers'));
+    document.getElementById('cancel').onclick = back;
+    document.getElementById('f').onsubmit = async (ev) => {
+      ev.preventDefault();
+      const val = (k) => document.getElementById('c-' + k).value.trim();
+      const data = { name: val('name'), doc: val('doc'), phone: val('phone'), email: val('email'), contact: val('contact'), address: val('address'), city: val('city'), notes: val('notes'), createdAt: c?.createdAt || new Date().toISOString() };
+      document.getElementById('save').disabled = true;
+      try {
+        const ref = c ? db.collection('customers').doc(c.id) : db.collection('customers').doc();
+        await ref.set(data);
+        go('customer', ref.id);
+      } catch (err) { document.getElementById('save').disabled = false; showErr(dbErr(err)); }
+    };
+    const del = document.getElementById('del');
+    if (del) {
+      if (printersOf(c.id).length) {
+        del.onclick = () => showErr('Este cliente ainda tem impressoras. Exclua as impressoras ou passe-as para outro cliente antes de excluir o cliente.');
+      } else {
+        arm(del, 'Toque de novo para excluir o cliente', async () => { await db.collection('customers').doc(c.id).delete(); go('customers'); });
+      }
+    }
+  }
+
+  // ---------- IMPRESSORAS: lista ----------
+  function printerList(ps, showCustomer = true) {
+    return `<ul class="list">${ps.map((p) => {
+      const ms = maintsOf(p.id);
+      return `<li><button class="item" data-pid="${p.id}">
+        <div class="row"><strong>${esc(showCustomer ? customerName(p) : (p.model || 'Modelo não informado'))}</strong><span class="chip num">${esc(p.serial)}</span></div>
+        <div class="muted">${esc((showCustomer ? [p.model, p.location] : [p.location]).filter(Boolean).join(' · ') || '—')}</div>
+        <div class="meta"><span>Contador: <span class="num">${fmt(currentCounter(p))}</span></span><span>Última visita: ${fdate(ms[0]?.date)}</span></div>
+      </button></li>`;
+    }).join('')}</ul>`;
+  }
+  function bindPrinterItems(back) { $view.querySelectorAll('[data-pid]').forEach((b) => (b.onclick = () => go('printer', b.dataset.pid, back))); }
+
+  function viewPrinters() {
+    const t = state.qP.trim().toLowerCase();
+    const rows = printers
+      .filter((p) => !t || [p.serial, p.model, customerName(p), p.location].some((v) => (v || '').toLowerCase().includes(t)))
+      .sort((a, b) => customerName(a).localeCompare(customerName(b), 'pt-BR') || a.serial.localeCompare(b.serial));
+    $view.innerHTML = `
+      <div class="head"><h1>Impressoras</h1>${isAdmin ? '<button class="btn sm" id="new">+ Nova impressora</button>' : ''}</div>
+      ${printers.length ? `<input id="qp" type="search" placeholder="Buscar por série, modelo, cliente ou local" value="${esc(state.qP)}">` : ''}
+      ${printers.length === 0 ? `<div class="empty"><p>Nenhuma impressora cadastrada ainda.</p>${isAdmin ? '<p>Cadastre um cliente e adicione as impressoras no perfil dele.</p>' : ''}</div>`
+        : rows.length === 0 ? '<p class="muted">Nada encontrado.</p>' : printerList(rows)}`;
+    bindSearch('qp', 'qP', viewPrinters);
+    const n = document.getElementById('new'); if (n) n.onclick = () => { state.newFor = null; go('printerForm', null, { view: 'printers' }); };
+    bindPrinterItems({ view: 'printers' });
+  }
+
+  // ---------- IMPRESSORAS: detalhe ----------
   function viewPrinter() {
     const p = printers.find((x) => x.id === state.id);
     if (!p) return go('printers');
+    const back = state.back || { view: 'printers' };
     const ms = maintsOf(p.id);
     const cur = currentCounter(p);
     const life = partLife(p.id);
+    const cust = customerOf(p);
     $view.innerHTML = `
-      <button class="link" id="back">← Impressoras</button>
+      <button class="link" id="back">← ${back.view === 'customer' ? esc(customers.find((c) => c.id === back.id)?.name || 'Cliente') : back.view === 'parts' ? 'Peças' : 'Impressoras'}</button>
       <section class="panel">
-        <div class="row"><h1>${esc(p.customer || 'Sem cliente')}</h1>${canWrite ? '<button class="link" id="edit">Editar</button>' : ''}</div>
+        <div class="row"><h1>${esc(p.model || 'Impressora')}</h1>${isAdmin ? '<button class="link" id="edit">Editar</button>' : ''}</div>
         <dl class="facts">
+          <dt>Cliente</dt><dd>${cust ? `<button class="link" id="goc">${esc(cust.name)}</button>` : esc(customerName(p))}</dd>
           <dt>Nº de série</dt><dd class="num">${esc(p.serial)}</dd>
-          <dt>Modelo</dt><dd>${esc(p.model || '—')}</dd>
           <dt>Local</dt><dd>${esc(p.location || '—')}</dd>
           <dt>Contador na instalação</dt><dd class="num">${fmt(p.installCounter)}</dd>
           <dt>Contador atual</dt><dd class="num big">${fmt(cur)}</dd>
           <dt>Páginas desde a instalação</dt><dd class="num">${fmt(cur - p.installCounter)}</dd>
         </dl>
       </section>
-      ${canWrite ? '<button class="btn" id="addm">+ Registrar manutenção</button>' : ''}
+      ${myId ? '<button class="btn" id="addm">+ Registrar manutenção</button>' : ''}
       ${life.length ? `<section class="panel"><h2>Peças: páginas desde a última troca</h2>
         <ul class="list">${life.map((r) => `<li class="row"><div><b class="num">${esc(r.code)}</b> <span class="muted">${esc(r.description)}</span><div class="muted">Trocada em ${fdate(r.date)} com <span class="num">${fmt(r.at)}</span></div></div><span class="chip bold num">${fmt(r.pages)}</span></li>`).join('')}</ul></section>` : ''}
       <h2>Histórico (${ms.length})</h2>
+      <div id="err"></div>
       ${ms.length === 0 ? '<p class="muted">Nenhuma manutenção registrada ainda.</p>' : `<ul class="list">${ms.map((m, i) => {
         const prev = ms[i + 1]?.counter ?? p.installCounter;
         return `<li class="panel">
@@ -205,28 +336,31 @@ legend { font-weight: 600; padding: 0 4px; }
           <div class="muted">${esc(m.technician || 'Técnico não informado')} · <span class="num">+${fmt(m.counter - prev)}</span> páginas desde a anterior</div>
           ${m.summary ? `<p class="summary">${esc(m.summary)}</p>` : ''}
           ${(m.parts || []).length ? `<ul class="parts">${m.parts.map((pt) => `<li>${pt.qty}× <b class="num">${esc(pt.code)}</b> ${esc(pt.description)}</li>`).join('')}</ul>` : ''}
-          ${canWrite ? `<div><button class="link bad" data-del="${m.id}">Excluir registro</button></div>` : ''}
+          ${isAdmin ? `<div class="actions"><button class="link sm" data-edit="${m._key}">Editar</button><button class="link bad" data-del="${m._key}">Excluir</button></div>` : ''}
         </li>`;
       }).join('')}</ul>`}`;
-    document.getElementById('back').onclick = () => go('printers');
-    const e = document.getElementById('edit'); if (e) e.onclick = () => go('printerForm', p.id);
-    const a = document.getElementById('addm'); if (a) a.onclick = () => go('maintForm', p.id);
-    $view.querySelectorAll('[data-del]').forEach((b) => (b.onclick = async () => {
-      if (b.dataset.armed !== '1') { b.dataset.armed = '1'; b.textContent = 'Toque de novo para confirmar a exclusão'; return; }
-      b.disabled = true;
-      try { await db.collection('maintenances').doc(b.dataset.del).delete(); } catch (err) { alertInline(err); }
-    }));
+    document.getElementById('back').onclick = () => go(back.view, back.id);
+    const gc = document.getElementById('goc'); if (gc) gc.onclick = () => go('customer', cust.id);
+    const e = document.getElementById('edit'); if (e) e.onclick = () => go('printerForm', p.id, { view: 'printer', id: p.id, back });
+    const a = document.getElementById('addm'); if (a) a.onclick = () => { state.editMaint = null; go('maintForm', p.id, back); };
+    $view.querySelectorAll('[data-edit]').forEach((b) => (b.onclick = () => { state.editMaint = b.dataset.edit; go('maintForm', p.id, back); }));
+    $view.querySelectorAll('[data-del]').forEach((b) => arm(b, 'Toque de novo para excluir', async () => { await maintRef(b.dataset.del).delete(); }));
   }
 
-  // ---------- tela: cadastrar / editar impressora ----------
+  // ---------- IMPRESSORAS: cadastro / edição ----------
   function viewPrinterForm() {
+    if (!isAdmin) return go('printers');
     const p = state.id ? printers.find((x) => x.id === state.id) : null;
+    const preset = p ? p.customerId : state.newFor;
+    const opts = customers.slice().sort(byName).map((c) => `<option value="${c.id}" ${c.id === preset ? 'selected' : ''}>${esc(c.name)}</option>`).join('');
     $view.innerHTML = `
       <h1>${p ? 'Editar impressora' : 'Nova impressora'}</h1>
+      ${customers.length === 0 ? '<div class="notice">Cadastre um cliente primeiro, na aba <b>Clientes</b>.</div>' : ''}
       <form id="f">
+        <label>Cliente *<select id="f-customer" required><option value="">Escolha o cliente</option>${opts}</select>
+          ${p && !p.customerId && p.customer ? `<span class="hint">Antes estava como: ${esc(p.customer)}</span>` : ''}</label>
         <label>Número de série *<input id="f-serial" required autocapitalize="characters" value="${esc(p?.serial)}"></label>
         <label>Modelo<input id="f-model" placeholder="Ex.: Kyocera M2040dn" value="${esc(p?.model)}"></label>
-        <label>Cliente<input id="f-customer" value="${esc(p?.customer)}"></label>
         <label>Local<input id="f-location" placeholder="Ex.: Recepção, 2º andar" value="${esc(p?.location)}"></label>
         <label>Contador na instalação<input id="f-install" type="number" inputmode="numeric" min="0" value="${p?.installCounter ?? 0}"></label>
         <div id="err"></div>
@@ -234,15 +368,16 @@ legend { font-weight: 600; padding: 0 4px; }
         <button class="btn ghost" type="button" id="cancel">Cancelar</button>
         ${p ? '<button class="btn danger" type="button" id="del">Excluir impressora</button>' : ''}
       </form>`;
-    document.getElementById('cancel').onclick = () => go(p ? 'printer' : 'printers', p?.id);
+    const back = () => (state.back ? go(state.back.view, state.back.id, state.back.back) : go('printers'));
+    document.getElementById('cancel').onclick = back;
     document.getElementById('f').onsubmit = async (ev) => {
       ev.preventDefault();
       const serial = document.getElementById('f-serial').value.trim().toUpperCase();
       if (printers.some((x) => x.serial === serial && x.id !== p?.id)) return showErr('Já existe uma impressora com esse número de série.');
       const data = {
+        customerId: document.getElementById('f-customer').value,
         serial,
         model: document.getElementById('f-model').value.trim(),
-        customer: document.getElementById('f-customer').value.trim(),
         location: document.getElementById('f-location').value.trim(),
         installCounter: Math.max(0, Number(document.getElementById('f-install').value) || 0),
         createdAt: p?.createdAt || new Date().toISOString(),
@@ -251,45 +386,44 @@ legend { font-weight: 600; padding: 0 4px; }
       try {
         const ref = p ? db.collection('printers').doc(p.id) : db.collection('printers').doc();
         await ref.set(data);
-        go('printer', ref.id);
+        go('printer', ref.id, { view: 'customer', id: data.customerId });
       } catch (err) { document.getElementById('save').disabled = false; showErr(dbErr(err)); }
     };
     const del = document.getElementById('del');
-    if (del) del.onclick = async () => {
-      if (!del.classList.contains('armed')) { del.classList.add('armed'); del.textContent = 'Confirmar: apagar impressora e todo o histórico'; return; }
-      del.disabled = true;
-      try {
-        for (const m of maintsOf(p.id)) await db.collection('maintenances').doc(m.id).delete();
-        await db.collection('printers').doc(p.id).delete();
-        go('printers');
-      } catch (err) { showErr(dbErr(err)); }
-    };
+    if (del) arm(del, 'Toque de novo: apaga a impressora e todo o histórico', async () => {
+      for (const m of maintsOf(p.id)) await maintRef(m._key).delete();
+      await db.collection('printers').doc(p.id).delete();
+      go('customer', p.customerId);
+    });
   }
 
-  // ---------- tela: nova manutenção ----------
+  // ---------- MANUTENÇÃO: registrar / editar ----------
   function viewMaintForm() {
     const p = printers.find((x) => x.id === state.id);
-    if (!p) return go('printers');
-    const last = currentCounter(p);
+    if (!p || !myId) return go('printers');
+    const editing = state.editMaint ? allMaints().find((m) => m._key === state.editMaint) : null;
+    if (editing && !isAdmin) return go('printer', p.id, state.back);
+    const others = maintsOf(p.id).filter((m) => m !== editing);
+    const last = others.length ? others[0].counter : p.installCounter;
     const known = knownParts();
-    let parts = [];
+    let parts = editing ? (editing.parts || []).map((x) => ({ ...x })) : [];
     $view.innerHTML = `
       <button class="link" id="back">← Voltar</button>
-      <h1>Nova manutenção</h1>
-      <p class="muted">${esc(p.customer || 'Sem cliente')} · ${esc(p.model || '')} · <b class="num">${esc(p.serial)}</b></p>
+      <h1>${editing ? 'Editar manutenção' : 'Nova manutenção'}</h1>
+      <p class="muted">${esc(customerName(p))} · ${esc(p.model || '')} · <b class="num">${esc(p.serial)}</b></p>
       <form id="f">
-        <label>Data<input id="m-date" type="date" required value="${today()}"></label>
-        <label>Contador atual *<input id="m-counter" type="number" inputmode="numeric" min="0" required>
+        <label>Data<input id="m-date" type="date" required value="${editing?.date || today()}"></label>
+        <label>Contador atual *<input id="m-counter" type="number" inputmode="numeric" min="0" required value="${editing?.counter ?? ''}">
           <span class="hint" id="m-delta">Último contador registrado: <span class="num">${fmt(last)}</span></span></label>
-        <label>Técnico<input id="m-tech" autocomplete="name" value="${esc(lsGet('tecnico'))}"></label>
-        <label>O que foi feito<textarea id="m-summary" rows="4" placeholder="Limpeza, ajuste, defeito encontrado…"></textarea></label>
+        <label>Técnico<input id="m-tech" autocomplete="name" value="${esc(editing ? editing.technician : (myName || lsGet('tecnico')))}"></label>
+        <label>O que foi feito<textarea id="m-summary" rows="4" placeholder="Limpeza, ajuste, defeito encontrado…">${esc(editing?.summary)}</textarea></label>
         <fieldset><legend>Peças trocadas</legend>
           <datalist id="known">${Object.entries(known).map(([c, d]) => `<option value="${esc(c)}">${esc(d)}</option>`).join('')}</datalist>
           <div id="parts" style="display:flex;flex-direction:column;gap:8px"></div>
           <button class="btn ghost sm" type="button" id="addp">+ Adicionar peça</button>
         </fieldset>
         <div id="err"></div>
-        <button class="btn" id="save">Salvar manutenção</button>
+        <button class="btn" id="save">${editing ? 'Salvar alterações' : 'Salvar manutenção'}</button>
         <button class="btn ghost" type="button" id="cancel">Cancelar</button>
       </form>`;
     const box = document.getElementById('parts');
@@ -309,6 +443,7 @@ legend { font-weight: 600; padding: 0 4px; }
       }));
       box.querySelectorAll('[data-rm]').forEach((b) => (b.onclick = () => { parts.splice(+b.dataset.rm, 1); drawParts(); }));
     };
+    drawParts();
     document.getElementById('addp').onclick = () => { parts.push({ code: '', description: '', qty: 1 }); drawParts(); box.querySelector('.part-row:last-child input').focus(); };
     const cnt = document.getElementById('m-counter');
     const delta = document.getElementById('m-delta');
@@ -317,7 +452,8 @@ legend { font-weight: 600; padding: 0 4px; }
       delta.className = 'hint' + (cnt.value && d < 0 ? ' bad' : '');
       delta.innerHTML = `Último contador registrado: <span class="num">${fmt(last)}</span>` + (cnt.value ? ` · <span class="num">${d >= 0 ? '+' : ''}${fmt(d)}</span> páginas` + (d < 0 ? ' (menor que o último, confira)' : '') : '');
     };
-    const back = () => go('printer', p.id);
+    if (editing) cnt.oninput();
+    const back = () => go('printer', p.id, state.back);
     document.getElementById('back').onclick = back;
     document.getElementById('cancel').onclick = back;
     document.getElementById('f').onsubmit = async (ev) => {
@@ -325,56 +461,66 @@ legend { font-weight: 600; padding: 0 4px; }
       const counter = Number(cnt.value);
       if (counter < p.installCounter) return showErr(`O contador não pode ser menor que o da instalação (${fmt(p.installCounter)}).`);
       const save = document.getElementById('save');
-      if (counter < last && save.dataset.armed !== '1') {
+      if (!editing && counter < last && save.dataset.armed !== '1') {
         save.dataset.armed = '1'; save.textContent = 'Salvar mesmo assim (contador menor que o último)';
         return showErr(`O contador ${fmt(counter)} é menor que o último registrado (${fmt(last)}). Confira antes de salvar.`);
       }
       const technician = document.getElementById('m-tech').value.trim();
-      lsSet('tecnico', technician);
+      if (!editing) lsSet('tecnico', technician);
+      const data = {
+        printerId: p.id,
+        date: document.getElementById('m-date').value,
+        counter,
+        technician,
+        summary: document.getElementById('m-summary').value.trim(),
+        parts: parts.filter((x) => x.code.trim()).map((x) => ({ code: x.code.trim().toUpperCase(), description: x.description.trim(), qty: x.qty })),
+        createdAt: editing?.createdAt || new Date().toISOString(),
+        createdBy: editing ? (editing.createdBy || null) : myId,
+      };
       save.disabled = true;
       try {
-        await db.collection('maintenances').doc().set({
-          printerId: p.id,
-          date: document.getElementById('m-date').value,
-          counter,
-          technician,
-          summary: document.getElementById('m-summary').value.trim(),
-          parts: parts.filter((x) => x.code.trim()).map((x) => ({ code: x.code.trim().toUpperCase(), description: x.description.trim(), qty: x.qty })),
-          createdAt: new Date().toISOString(),
-        });
+        if (editing) {
+          await maintRef(editing._key).set(data);
+        } else {
+          // Ficha do técnico: precisa existir para o app encontrar as manutenções dele
+          if (!techSubs[myId] || !(techItems[myId] || []).length) await db.doc('maint/' + myId).set({ since: new Date().toISOString() });
+          await db.collection('maint/' + myId + '/items').doc().set(data);
+          if (!techSubs[myId]) watchTech(myId);
+        }
         back();
-      } catch (err) { save.disabled = false; showErr(dbErr(err)); }
+      } catch (err) { save.disabled = false; showErr(dbErr(err, true)); }
     };
   }
 
-  // ---------- tela: vida das peças ----------
+  // ---------- PEÇAS ----------
   function viewParts() {
     const all = partLife(null);
     const t = state.qParts.trim().toLowerCase();
-    const rows = all.filter((r) => !t || [r.code, r.description, r.printer.customer, r.printer.serial, r.printer.model].some((v) => (v || '').toLowerCase().includes(t)));
+    const rows = all.filter((r) => !t || [r.code, r.description, customerName(r.printer), r.printer.serial, r.printer.model].some((v) => (v || '').toLowerCase().includes(t)));
     const max = Math.max(1, ...all.map((r) => r.pages));
     $view.innerHTML = `
       <h1>Vida das peças</h1>
       <p class="muted">Páginas impressas desde a última troca de cada peça, pelo contador da visita mais recente. As que mais rodaram aparecem primeiro.</p>
-      ${all.length ? `<input id="qp" type="search" placeholder="Filtrar por peça, cliente, série ou modelo" value="${esc(state.qParts)}">` : ''}
+      ${all.length ? `<input id="qx" type="search" placeholder="Filtrar por peça, cliente, série ou modelo" value="${esc(state.qParts)}">` : ''}
       ${all.length === 0 ? '<div class="empty"><p>Nenhuma troca de peça registrada ainda.</p><p>Ao registrar uma manutenção, adicione as peças trocadas e elas aparecem aqui.</p></div>'
         : rows.length === 0 ? '<p class="muted">Nada encontrado.</p>'
-        : `<ul class="list">${rows.map((r) => `<li><button class="item" data-id="${r.printerId}">
+        : `<ul class="list">${rows.map((r) => `<li><button class="item" data-pid="${r.printerId}">
             <div class="row"><strong class="num">${esc(r.code)}</strong><span class="chip bold num">${fmt(r.pages)} págs</span></div>
             <div class="muted">${esc(r.description)}</div>
             <div class="bar" aria-hidden="true"><span style="width:${Math.round((r.pages / max) * 100)}%"></span></div>
-            <div class="meta"><span>${esc(r.printer.customer || 'Sem cliente')} · <span class="num">${esc(r.printer.serial)}</span></span><span>Trocada em ${fdate(r.date)}</span></div>
+            <div class="meta"><span>${esc(customerName(r.printer))} · <span class="num">${esc(r.printer.serial)}</span></span><span>Trocada em ${fdate(r.date)}</span></div>
           </button></li>`).join('')}</ul>`}`;
-    const q = document.getElementById('qp');
-    if (q) q.oninput = () => { state.qParts = q.value; const pos = q.selectionStart; viewParts(); const nq = document.getElementById('qp'); nq.focus(); nq.setSelectionRange(pos, pos); };
-    $view.querySelectorAll('.item').forEach((b) => (b.onclick = () => go('printer', b.dataset.id)));
+    bindSearch('qx', 'qParts', viewParts);
+    bindPrinterItems({ view: 'parts' });
   }
 
   // ---------- utilidades ----------
-  function showErr(msg) { const e = document.getElementById('err'); if (e) e.innerHTML = `<div class="notice bad">${esc(msg)}</div>`; }
-  function alertInline(err) { const n = document.createElement('div'); n.className = 'notice bad'; n.textContent = dbErr(err); $view.prepend(n); }
-  function dbErr(err) {
-    if (err?.code === 'invalid_argument' || err?.code === 'not_granted') return 'Você não tem permissão para alterar os dados deste app.';
+  function maintRef(key) { const [kind, a, b] = key.split('|'); return kind === 'L' ? db.collection('maintenances').doc(a) : db.collection('maint/' + a + '/items').doc(b); }
+  function showErr(msg) { const e = document.getElementById('err'); if (e) { e.innerHTML = `<div class="notice bad">${esc(msg)}</div>`; e.scrollIntoView({ block: 'center' }); } }
+  function dbErr(err, maint) {
+    if (err?.code === 'invalid_argument' || err?.code === 'not_granted')
+      return maint ? 'Sua conta não tem permissão para registrar manutenções. Peça ao administrador para compartilhar o app com você como Colaborador.'
+                   : 'Só administradores podem fazer essa alteração.';
     if (err?.code === 'quota_exceeded') return 'O limite de registros foi atingido.';
     return 'Não foi possível salvar. Verifique a conexão e tente de novo.';
   }
@@ -382,34 +528,40 @@ legend { font-weight: 600; padding: 0 4px; }
   function lsSet(k, v) { try { localStorage.setItem(k, v); } catch {} }
 
   // ---------- dados ----------
+  const isEditing = () => ['printerForm', 'maintForm', 'customerForm'].includes(state.view) && loaded.c && loaded.p && loaded.l && loaded.t;
+  const refresh = () => { if (!isEditing()) render(); };
+  const onErr = () => { errorMsg = 'Não foi possível carregar os dados. Recarregue a página.'; render(); };
+
+  function watchTech(uid) {
+    techSubs[uid] = db.collection('maint/' + uid + '/items').onSnapshot((s) => {
+      techItems[uid] = s.docs.map((d) => ({ ...d.data(), id: d.id, _key: 'T|' + uid + '|' + d.id }));
+      refresh();
+    }, () => {});
+  }
+
   async function start() {
     db = await window.claude?.use?.('db');
-    if (!db) {
-      errorMsg = 'Os dados não estão disponíveis aqui. Abra o app pelo link do claude.ai, conectado à sua conta.';
-      render(); return;
+    if (!db) { errorMsg = 'Os dados não estão disponíveis aqui. Abra o app pelo link do claude.ai, conectado à sua conta.'; render(); return; }
+    user = await window.claude.use('user');
+    if (user) {
+      try { isAdmin = !!(await user.canEdit()); } catch {}
+      try { myId = await user.id(); } catch {}
+      try { myName = (await user.name()) || ''; } catch {}
     }
-    try {
-      const user = await window.claude.use('user');
-      const w = user ? await user.can('data.write') : null;
-      if (w === false) canWrite = false;
-    } catch {}
-    const timer = setTimeout(() => { if (!loaded.p || !loaded.m) { errorMsg = 'Os dados estão demorando para carregar. Verifique a conexão.'; render(); } }, 10000);
-    const onErr = () => { clearTimeout(timer); errorMsg = 'Não foi possível carregar os dados. Recarregue a página.'; render(); };
-    db.collection('printers').onSnapshot((s) => {
-      printers = s.docs.map((d) => ({ id: d.id, ...d.data() }));
-      if (!s.metadata.fromCache) loaded.p = true;
-      if (loaded.p && loaded.m) clearTimeout(timer);
-      if (!isEditing()) render();
-    }, onErr);
-    db.collection('maintenances').onSnapshot((s) => {
-      maints = s.docs.map((d) => ({ id: d.id, ...d.data() }));
-      if (!s.metadata.fromCache) loaded.m = true;
-      if (loaded.p && loaded.m) clearTimeout(timer);
-      if (!isEditing()) render();
+    const role = document.getElementById('role');
+    role.textContent = isAdmin ? 'Administrador' : 'Técnico';
+    role.hidden = false;
+
+    const timer = setTimeout(() => { if (!loaded.c || !loaded.p || !loaded.l || !loaded.t) { errorMsg = 'Os dados estão demorando para carregar. Verifique a conexão.'; render(); } }, 10000);
+    const done = (k, s) => { if (!s.metadata.fromCache) loaded[k] = true; if (loaded.c && loaded.p && loaded.l && loaded.t) clearTimeout(timer); };
+    db.collection('customers').onSnapshot((s) => { customers = s.docs.map((d) => ({ ...d.data(), id: d.id })); done('c', s); refresh(); }, onErr);
+    db.collection('printers').onSnapshot((s) => { printers = s.docs.map((d) => ({ ...d.data(), id: d.id })); done('p', s); refresh(); }, onErr);
+    db.collection('maintenances').onSnapshot((s) => { legacy = s.docs.map((d) => ({ ...d.data(), id: d.id, _key: 'L|' + d.id })); done('l', s); refresh(); }, onErr);
+    db.collection('maint').onSnapshot((s) => {
+      for (const d of s.docs) if (!techSubs[d.id]) watchTech(d.id);
+      done('t', s); refresh();
     }, onErr);
   }
-  // Não redesenha formulários enquanto a pessoa digita (mudanças de outros usuários aparecem ao sair)
-  const isEditing = () => (state.view === 'printerForm' || state.view === 'maintForm') && loaded.p && loaded.m;
 
   start();
 })();
