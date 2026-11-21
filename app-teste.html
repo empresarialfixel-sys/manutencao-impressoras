@@ -1,0 +1,416 @@
+<title>Manutenção de Impressoras</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: app de campo, uma coluna, barra superior fixa e abas no rodapé */
+:root {
+  --bg: #eef2f5; --surface: #ffffff; --fg: #17222d; --muted: #5a6b7b; --line: #d6dee6;
+  --accent: #1d5c8c; --accent-fg: #ffffff; --chip: #e2ebf3;
+  --ok: #1c7a43; --warn: #9a6500; --bad: #b3261e;
+  --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0f151b; --surface: #18212a; --fg: #e4eaf0; --muted: #93a3b3; --line: #2a3643;
+  --accent: #5fa3db; --accent-fg: #08131d; --chip: #22303d;
+  --ok: #4cc27b; --warn: #e0a83a; --bad: #f0786e; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0f151b; --surface: #18212a; --fg: #e4eaf0; --muted: #93a3b3; --line: #2a3643;
+  --accent: #5fa3db; --accent-fg: #08131d; --chip: #22303d;
+  --ok: #4cc27b; --warn: #e0a83a; --bad: #f0786e; color-scheme: dark; }
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font: 16px/1.45 var(--sans); }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--accent); }
+h1 { font-size: 1.3rem; margin: 0; text-wrap: balance; }
+h2 { font-size: 1rem; margin: 0; }
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--accent); color: var(--accent-fg);
+  padding-block: .8rem; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.top b { font-weight: 700; letter-spacing: .01em; }
+main { max-width: 720px; margin: 0 auto; padding-block: 16px 96px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 14px; }
+.tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; display: flex; background: var(--surface); border-top: 1px solid var(--line);
+  padding-bottom: env(safe-area-inset-bottom, 0px); padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px); }
+.tabs button { flex: 1; background: none; border: 0; font: 600 .95rem var(--sans); color: var(--muted); padding: .9rem 0; cursor: pointer; }
+.tabs button[aria-current="true"] { color: var(--accent); box-shadow: inset 0 3px 0 var(--accent); }
+
+.head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.btn { font: 600 1rem var(--sans); background: var(--accent); color: var(--accent-fg); border: 0; border-radius: 8px; padding: .8rem 1rem; cursor: pointer; text-align: center; }
+.btn.sm { padding: .5rem .85rem; font-size: .92rem; }
+.btn.ghost { background: transparent; color: var(--accent); border: 1px solid var(--line); }
+.btn.danger { background: transparent; color: var(--bad); border: 1px solid var(--bad); }
+.btn.danger.armed { background: var(--bad); color: var(--surface); }
+.btn:disabled { opacity: .55; cursor: default; }
+.link { background: none; border: 0; padding: 0; font: inherit; color: var(--accent); cursor: pointer; font-weight: 600; }
+.link.bad { color: var(--bad); font-size: .85rem; font-weight: 500; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+input, textarea { font: inherit; color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: .7rem .75rem; width: 100%; min-width: 0; }
+label { display: flex; flex-direction: column; gap: 5px; font-weight: 600; font-size: .92rem; }
+.hint { font-weight: 400; font-size: .85rem; color: var(--muted); }
+.hint.bad { color: var(--bad); }
+form { display: flex; flex-direction: column; gap: 14px; }
+
+.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.item { width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; background: var(--surface); border: 1px solid var(--line);
+  border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; }
+.item:hover { border-color: var(--accent); }
+.row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; min-width: 0; }
+.row > :first-child { min-width: 0; overflow-wrap: anywhere; }
+.muted { color: var(--muted); font-size: .9rem; margin: 0; }
+.meta { display: flex; flex-wrap: wrap; gap: 2px 14px; color: var(--muted); font-size: .85rem; }
+.chip { background: var(--chip); border-radius: 6px; padding: 1px 8px; font-size: .85rem; white-space: nowrap; }
+.chip.bold { font-weight: 600; }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.facts { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0; }
+.facts dt { color: var(--muted); }
+.facts dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
+.big { font-size: 1.05rem; font-weight: 600; }
+
+.parts { margin: 4px 0 0; padding-left: 18px; font-size: .92rem; }
+.summary { margin: 4px 0 0; white-space: pre-wrap; }
+fieldset { border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+legend { font-weight: 600; padding: 0 4px; }
+.part-row { display: grid; grid-template-columns: 1fr 1.5fr 4.2rem 2.6rem; gap: 6px; }
+.part-row .x { border: 1px solid var(--line); background: none; color: var(--muted); border-radius: 8px; cursor: pointer; font-size: 1rem; }
+@media (max-width: 500px) {
+  .part-row { grid-template-columns: 1fr 4.2rem 2.6rem; }
+  .part-row .desc { grid-column: 1 / -1; grid-row: 2; }
+}
+.bar { height: 6px; background: var(--chip); border-radius: 3px; overflow: hidden; }
+.bar > span { display: block; height: 100%; background: var(--accent); }
+.notice { background: var(--chip); border-radius: 10px; padding: 10px 12px; font-size: .9rem; }
+.notice.bad { color: var(--bad); }
+.empty { text-align: center; padding: 28px 12px; color: var(--muted); display: flex; flex-direction: column; gap: 12px; align-items: center; }
+</style>
+
+<div class="top"><b>Manutenção de Impressoras</b></div>
+<main id="view" aria-live="polite"><p class="muted">Carregando dados…</p></main>
+<nav class="tabs">
+  <button id="tab-printers" type="button" aria-current="true">Impressoras</button>
+  <button id="tab-parts" type="button" aria-current="false">Vida das peças</button>
+</nav>
+
+<script>
+(() => {
+  const $view = document.getElementById('view');
+  const nf = new Intl.NumberFormat('pt-BR');
+  const fmt = (n) => (n == null || isNaN(n) ? '—' : nf.format(n));
+  const fdate = (d) => (d ? d.slice(0, 10).split('-').reverse().join('/') : '—');
+  const today = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  let db = null;
+  let canWrite = true;
+  let printers = [];   // {id, serial, model, customer, location, installCounter}
+  let maints = [];     // {id, printerId, date, counter, technician, summary, parts:[{code, description, qty}]}
+  let loaded = { p: false, m: false };
+  let state = { view: 'printers', id: null, q: '', qParts: '' };
+  let errorMsg = '';
+
+  // ---------- cálculos ----------
+  const maintsOf = (pid) => maints.filter((m) => m.printerId === pid).sort((a, b) => b.counter - a.counter || (b.date > a.date ? 1 : -1));
+  const currentCounter = (p) => { const ms = maintsOf(p.id); return ms.length ? ms[0].counter : p.installCounter; };
+  function partLife(pid) {
+    const out = {};
+    const ms = pid ? maintsOf(pid) : maints.slice().sort((a, b) => b.counter - a.counter);
+    for (const m of ms) for (const pt of m.parts || []) {
+      const key = m.printerId + '|' + pt.code;
+      if (!out[key]) out[key] = { printerId: m.printerId, code: pt.code, description: pt.description, date: m.date, at: m.counter };
+    }
+    return Object.values(out).map((r) => {
+      const p = printers.find((x) => x.id === r.printerId);
+      return { ...r, printer: p, pages: p ? currentCounter(p) - r.at : 0 };
+    }).filter((r) => r.printer).sort((a, b) => b.pages - a.pages);
+  }
+  function knownParts() {
+    const map = {};
+    for (const m of maints) for (const pt of m.parts || []) if (pt.code && !map[pt.code]) map[pt.code] = pt.description || '';
+    return map;
+  }
+
+  // ---------- navegação ----------
+  function go(view, id = null) { state.view = view; state.id = id; errorMsg = ''; render(); window.scrollTo(0, 0); }
+  document.getElementById('tab-printers').onclick = () => go('printers');
+  document.getElementById('tab-parts').onclick = () => go('parts');
+
+  function render() {
+    const tabPrinters = state.view !== 'parts';
+    document.getElementById('tab-printers').setAttribute('aria-current', String(tabPrinters));
+    document.getElementById('tab-parts').setAttribute('aria-current', String(!tabPrinters));
+    if (!loaded.p || !loaded.m) {
+      $view.innerHTML = errorMsg ? `<div class="notice bad">${esc(errorMsg)}</div>` : '<p class="muted">Carregando dados…</p>';
+      return;
+    }
+    ({ printers: viewPrinters, printer: viewPrinter, printerForm: viewPrinterForm, maintForm: viewMaintForm, parts: viewParts }[state.view] || viewPrinters)();
+  }
+
+  // ---------- tela: lista de impressoras ----------
+  function viewPrinters() {
+    const t = state.q.trim().toLowerCase();
+    const rows = printers
+      .filter((p) => !t || [p.serial, p.model, p.customer, p.location].some((v) => (v || '').toLowerCase().includes(t)))
+      .sort((a, b) => (a.customer || '').localeCompare(b.customer || '') || a.serial.localeCompare(b.serial));
+    $view.innerHTML = `
+      <div class="head"><h1>Impressoras</h1>${canWrite ? '<button class="btn sm" id="new">+ Nova impressora</button>' : ''}</div>
+      ${printers.length ? `<input id="q" type="search" placeholder="Buscar por série, modelo, cliente ou local" value="${esc(state.q)}">` : ''}
+      ${printers.length === 0 ? `<div class="empty"><p>Nenhuma impressora cadastrada ainda.</p>${canWrite ? '<button class="btn" id="new2">Cadastrar a primeira impressora</button>' : ''}</div>`
+        : rows.length === 0 ? '<p class="muted">Nada encontrado.</p>'
+        : `<ul class="list">${rows.map((p) => {
+            const ms = maintsOf(p.id);
+            return `<li><button class="item" data-id="${p.id}">
+              <div class="row"><strong>${esc(p.customer || 'Sem cliente')}</strong><span class="chip num">${esc(p.serial)}</span></div>
+              <div class="muted">${esc([p.model, p.location].filter(Boolean).join(' · ') || '—')}</div>
+              <div class="meta"><span>Contador: <span class="num">${fmt(currentCounter(p))}</span></span><span>Última visita: ${fdate(ms[0]?.date)}</span><span>${ms.length} visita${ms.length === 1 ? '' : 's'}</span></div>
+            </button></li>`;
+          }).join('')}</ul>`}`;
+    const q = document.getElementById('q');
+    if (q) q.oninput = () => { state.q = q.value; const pos = q.selectionStart; viewPrinters(); const nq = document.getElementById('q'); nq.focus(); nq.setSelectionRange(pos, pos); };
+    for (const id of ['new', 'new2']) { const b = document.getElementById(id); if (b) b.onclick = () => go('printerForm'); }
+    $view.querySelectorAll('.item').forEach((b) => (b.onclick = () => go('printer', b.dataset.id)));
+  }
+
+  // ---------- tela: detalhe da impressora ----------
+  function viewPrinter() {
+    const p = printers.find((x) => x.id === state.id);
+    if (!p) return go('printers');
+    const ms = maintsOf(p.id);
+    const cur = currentCounter(p);
+    const life = partLife(p.id);
+    $view.innerHTML = `
+      <button class="link" id="back">← Impressoras</button>
+      <section class="panel">
+        <div class="row"><h1>${esc(p.customer || 'Sem cliente')}</h1>${canWrite ? '<button class="link" id="edit">Editar</button>' : ''}</div>
+        <dl class="facts">
+          <dt>Nº de série</dt><dd class="num">${esc(p.serial)}</dd>
+          <dt>Modelo</dt><dd>${esc(p.model || '—')}</dd>
+          <dt>Local</dt><dd>${esc(p.location || '—')}</dd>
+          <dt>Contador na instalação</dt><dd class="num">${fmt(p.installCounter)}</dd>
+          <dt>Contador atual</dt><dd class="num big">${fmt(cur)}</dd>
+          <dt>Páginas desde a instalação</dt><dd class="num">${fmt(cur - p.installCounter)}</dd>
+        </dl>
+      </section>
+      ${canWrite ? '<button class="btn" id="addm">+ Registrar manutenção</button>' : ''}
+      ${life.length ? `<section class="panel"><h2>Peças: páginas desde a última troca</h2>
+        <ul class="list">${life.map((r) => `<li class="row"><div><b class="num">${esc(r.code)}</b> <span class="muted">${esc(r.description)}</span><div class="muted">Trocada em ${fdate(r.date)} com <span class="num">${fmt(r.at)}</span></div></div><span class="chip bold num">${fmt(r.pages)}</span></li>`).join('')}</ul></section>` : ''}
+      <h2>Histórico (${ms.length})</h2>
+      ${ms.length === 0 ? '<p class="muted">Nenhuma manutenção registrada ainda.</p>' : `<ul class="list">${ms.map((m, i) => {
+        const prev = ms[i + 1]?.counter ?? p.installCounter;
+        return `<li class="panel">
+          <div class="row"><strong>${fdate(m.date)}</strong><span class="chip num">${fmt(m.counter)} págs</span></div>
+          <div class="muted">${esc(m.technician || 'Técnico não informado')} · <span class="num">+${fmt(m.counter - prev)}</span> páginas desde a anterior</div>
+          ${m.summary ? `<p class="summary">${esc(m.summary)}</p>` : ''}
+          ${(m.parts || []).length ? `<ul class="parts">${m.parts.map((pt) => `<li>${pt.qty}× <b class="num">${esc(pt.code)}</b> ${esc(pt.description)}</li>`).join('')}</ul>` : ''}
+          ${canWrite ? `<div><button class="link bad" data-del="${m.id}">Excluir registro</button></div>` : ''}
+        </li>`;
+      }).join('')}</ul>`}`;
+    document.getElementById('back').onclick = () => go('printers');
+    const e = document.getElementById('edit'); if (e) e.onclick = () => go('printerForm', p.id);
+    const a = document.getElementById('addm'); if (a) a.onclick = () => go('maintForm', p.id);
+    $view.querySelectorAll('[data-del]').forEach((b) => (b.onclick = async () => {
+      if (b.dataset.armed !== '1') { b.dataset.armed = '1'; b.textContent = 'Toque de novo para confirmar a exclusão'; return; }
+      b.disabled = true;
+      try { await db.collection('maintenances').doc(b.dataset.del).delete(); } catch (err) { alertInline(err); }
+    }));
+  }
+
+  // ---------- tela: cadastrar / editar impressora ----------
+  function viewPrinterForm() {
+    const p = state.id ? printers.find((x) => x.id === state.id) : null;
+    $view.innerHTML = `
+      <h1>${p ? 'Editar impressora' : 'Nova impressora'}</h1>
+      <form id="f">
+        <label>Número de série *<input id="f-serial" required autocapitalize="characters" value="${esc(p?.serial)}"></label>
+        <label>Modelo<input id="f-model" placeholder="Ex.: Kyocera M2040dn" value="${esc(p?.model)}"></label>
+        <label>Cliente<input id="f-customer" value="${esc(p?.customer)}"></label>
+        <label>Local<input id="f-location" placeholder="Ex.: Recepção, 2º andar" value="${esc(p?.location)}"></label>
+        <label>Contador na instalação<input id="f-install" type="number" inputmode="numeric" min="0" value="${p?.installCounter ?? 0}"></label>
+        <div id="err"></div>
+        <button class="btn" id="save">Salvar</button>
+        <button class="btn ghost" type="button" id="cancel">Cancelar</button>
+        ${p ? '<button class="btn danger" type="button" id="del">Excluir impressora</button>' : ''}
+      </form>`;
+    document.getElementById('cancel').onclick = () => go(p ? 'printer' : 'printers', p?.id);
+    document.getElementById('f').onsubmit = async (ev) => {
+      ev.preventDefault();
+      const serial = document.getElementById('f-serial').value.trim().toUpperCase();
+      if (printers.some((x) => x.serial === serial && x.id !== p?.id)) return showErr('Já existe uma impressora com esse número de série.');
+      const data = {
+        serial,
+        model: document.getElementById('f-model').value.trim(),
+        customer: document.getElementById('f-customer').value.trim(),
+        location: document.getElementById('f-location').value.trim(),
+        installCounter: Math.max(0, Number(document.getElementById('f-install').value) || 0),
+        createdAt: p?.createdAt || new Date().toISOString(),
+      };
+      document.getElementById('save').disabled = true;
+      try {
+        const ref = p ? db.collection('printers').doc(p.id) : db.collection('printers').doc();
+        await ref.set(data);
+        go('printer', ref.id);
+      } catch (err) { document.getElementById('save').disabled = false; showErr(dbErr(err)); }
+    };
+    const del = document.getElementById('del');
+    if (del) del.onclick = async () => {
+      if (!del.classList.contains('armed')) { del.classList.add('armed'); del.textContent = 'Confirmar: apagar impressora e todo o histórico'; return; }
+      del.disabled = true;
+      try {
+        for (const m of maintsOf(p.id)) await db.collection('maintenances').doc(m.id).delete();
+        await db.collection('printers').doc(p.id).delete();
+        go('printers');
+      } catch (err) { showErr(dbErr(err)); }
+    };
+  }
+
+  // ---------- tela: nova manutenção ----------
+  function viewMaintForm() {
+    const p = printers.find((x) => x.id === state.id);
+    if (!p) return go('printers');
+    const last = currentCounter(p);
+    const known = knownParts();
+    let parts = [];
+    $view.innerHTML = `
+      <button class="link" id="back">← Voltar</button>
+      <h1>Nova manutenção</h1>
+      <p class="muted">${esc(p.customer || 'Sem cliente')} · ${esc(p.model || '')} · <b class="num">${esc(p.serial)}</b></p>
+      <form id="f">
+        <label>Data<input id="m-date" type="date" required value="${today()}"></label>
+        <label>Contador atual *<input id="m-counter" type="number" inputmode="numeric" min="0" required>
+          <span class="hint" id="m-delta">Último contador registrado: <span class="num">${fmt(last)}</span></span></label>
+        <label>Técnico<input id="m-tech" autocomplete="name" value="${esc(lsGet('tecnico'))}"></label>
+        <label>O que foi feito<textarea id="m-summary" rows="4" placeholder="Limpeza, ajuste, defeito encontrado…"></textarea></label>
+        <fieldset><legend>Peças trocadas</legend>
+          <datalist id="known">${Object.entries(known).map(([c, d]) => `<option value="${esc(c)}">${esc(d)}</option>`).join('')}</datalist>
+          <div id="parts" style="display:flex;flex-direction:column;gap:8px"></div>
+          <button class="btn ghost sm" type="button" id="addp">+ Adicionar peça</button>
+        </fieldset>
+        <div id="err"></div>
+        <button class="btn" id="save">Salvar manutenção</button>
+        <button class="btn ghost" type="button" id="cancel">Cancelar</button>
+      </form>`;
+    const box = document.getElementById('parts');
+    const drawParts = () => {
+      box.innerHTML = parts.map((pt, i) => `<div class="part-row">
+        <input placeholder="Código" list="known" autocapitalize="characters" data-i="${i}" data-k="code" value="${esc(pt.code)}" aria-label="Código da peça">
+        <input class="desc" placeholder="Descrição" data-i="${i}" data-k="description" value="${esc(pt.description)}" aria-label="Descrição da peça">
+        <input type="number" min="1" inputmode="numeric" data-i="${i}" data-k="qty" value="${pt.qty}" aria-label="Quantidade">
+        <button type="button" class="x" data-rm="${i}" aria-label="Remover peça">✕</button></div>`).join('');
+      box.querySelectorAll('input').forEach((inp) => (inp.oninput = () => {
+        const pt = parts[inp.dataset.i];
+        pt[inp.dataset.k] = inp.dataset.k === 'qty' ? Math.max(1, Number(inp.value) || 1) : inp.value;
+        if (inp.dataset.k === 'code' && !pt.description) {
+          const d = known[inp.value.trim().toUpperCase()];
+          if (d) { pt.description = d; box.querySelector(`[data-i="${inp.dataset.i}"][data-k="description"]`).value = d; }
+        }
+      }));
+      box.querySelectorAll('[data-rm]').forEach((b) => (b.onclick = () => { parts.splice(+b.dataset.rm, 1); drawParts(); }));
+    };
+    document.getElementById('addp').onclick = () => { parts.push({ code: '', description: '', qty: 1 }); drawParts(); box.querySelector('.part-row:last-child input').focus(); };
+    const cnt = document.getElementById('m-counter');
+    const delta = document.getElementById('m-delta');
+    cnt.oninput = () => {
+      const d = Number(cnt.value) - last;
+      delta.className = 'hint' + (cnt.value && d < 0 ? ' bad' : '');
+      delta.innerHTML = `Último contador registrado: <span class="num">${fmt(last)}</span>` + (cnt.value ? ` · <span class="num">${d >= 0 ? '+' : ''}${fmt(d)}</span> páginas` + (d < 0 ? ' (menor que o último, confira)' : '') : '');
+    };
+    const back = () => go('printer', p.id);
+    document.getElementById('back').onclick = back;
+    document.getElementById('cancel').onclick = back;
+    document.getElementById('f').onsubmit = async (ev) => {
+      ev.preventDefault();
+      const counter = Number(cnt.value);
+      if (counter < p.installCounter) return showErr(`O contador não pode ser menor que o da instalação (${fmt(p.installCounter)}).`);
+      const save = document.getElementById('save');
+      if (counter < last && save.dataset.armed !== '1') {
+        save.dataset.armed = '1'; save.textContent = 'Salvar mesmo assim (contador menor que o último)';
+        return showErr(`O contador ${fmt(counter)} é menor que o último registrado (${fmt(last)}). Confira antes de salvar.`);
+      }
+      const technician = document.getElementById('m-tech').value.trim();
+      lsSet('tecnico', technician);
+      save.disabled = true;
+      try {
+        await db.collection('maintenances').doc().set({
+          printerId: p.id,
+          date: document.getElementById('m-date').value,
+          counter,
+          technician,
+          summary: document.getElementById('m-summary').value.trim(),
+          parts: parts.filter((x) => x.code.trim()).map((x) => ({ code: x.code.trim().toUpperCase(), description: x.description.trim(), qty: x.qty })),
+          createdAt: new Date().toISOString(),
+        });
+        back();
+      } catch (err) { save.disabled = false; showErr(dbErr(err)); }
+    };
+  }
+
+  // ---------- tela: vida das peças ----------
+  function viewParts() {
+    const all = partLife(null);
+    const t = state.qParts.trim().toLowerCase();
+    const rows = all.filter((r) => !t || [r.code, r.description, r.printer.customer, r.printer.serial, r.printer.model].some((v) => (v || '').toLowerCase().includes(t)));
+    const max = Math.max(1, ...all.map((r) => r.pages));
+    $view.innerHTML = `
+      <h1>Vida das peças</h1>
+      <p class="muted">Páginas impressas desde a última troca de cada peça, pelo contador da visita mais recente. As que mais rodaram aparecem primeiro.</p>
+      ${all.length ? `<input id="qp" type="search" placeholder="Filtrar por peça, cliente, série ou modelo" value="${esc(state.qParts)}">` : ''}
+      ${all.length === 0 ? '<div class="empty"><p>Nenhuma troca de peça registrada ainda.</p><p>Ao registrar uma manutenção, adicione as peças trocadas e elas aparecem aqui.</p></div>'
+        : rows.length === 0 ? '<p class="muted">Nada encontrado.</p>'
+        : `<ul class="list">${rows.map((r) => `<li><button class="item" data-id="${r.printerId}">
+            <div class="row"><strong class="num">${esc(r.code)}</strong><span class="chip bold num">${fmt(r.pages)} págs</span></div>
+            <div class="muted">${esc(r.description)}</div>
+            <div class="bar" aria-hidden="true"><span style="width:${Math.round((r.pages / max) * 100)}%"></span></div>
+            <div class="meta"><span>${esc(r.printer.customer || 'Sem cliente')} · <span class="num">${esc(r.printer.serial)}</span></span><span>Trocada em ${fdate(r.date)}</span></div>
+          </button></li>`).join('')}</ul>`}`;
+    const q = document.getElementById('qp');
+    if (q) q.oninput = () => { state.qParts = q.value; const pos = q.selectionStart; viewParts(); const nq = document.getElementById('qp'); nq.focus(); nq.setSelectionRange(pos, pos); };
+    $view.querySelectorAll('.item').forEach((b) => (b.onclick = () => go('printer', b.dataset.id)));
+  }
+
+  // ---------- utilidades ----------
+  function showErr(msg) { const e = document.getElementById('err'); if (e) e.innerHTML = `<div class="notice bad">${esc(msg)}</div>`; }
+  function alertInline(err) { const n = document.createElement('div'); n.className = 'notice bad'; n.textContent = dbErr(err); $view.prepend(n); }
+  function dbErr(err) {
+    if (err?.code === 'invalid_argument' || err?.code === 'not_granted') return 'Você não tem permissão para alterar os dados deste app.';
+    if (err?.code === 'quota_exceeded') return 'O limite de registros foi atingido.';
+    return 'Não foi possível salvar. Verifique a conexão e tente de novo.';
+  }
+  function lsGet(k) { try { return localStorage.getItem(k) || ''; } catch { return ''; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); } catch {} }
+
+  // ---------- dados ----------
+  async function start() {
+    db = await window.claude?.use?.('db');
+    if (!db) {
+      errorMsg = 'Os dados não estão disponíveis aqui. Abra o app pelo link do claude.ai, conectado à sua conta.';
+      render(); return;
+    }
+    try {
+      const user = await window.claude.use('user');
+      const w = user ? await user.can('data.write') : null;
+      if (w === false) canWrite = false;
+    } catch {}
+    const timer = setTimeout(() => { if (!loaded.p || !loaded.m) { errorMsg = 'Os dados estão demorando para carregar. Verifique a conexão.'; render(); } }, 10000);
+    const onErr = () => { clearTimeout(timer); errorMsg = 'Não foi possível carregar os dados. Recarregue a página.'; render(); };
+    db.collection('printers').onSnapshot((s) => {
+      printers = s.docs.map((d) => ({ id: d.id, ...d.data() }));
+      if (!s.metadata.fromCache) loaded.p = true;
+      if (loaded.p && loaded.m) clearTimeout(timer);
+      if (!isEditing()) render();
+    }, onErr);
+    db.collection('maintenances').onSnapshot((s) => {
+      maints = s.docs.map((d) => ({ id: d.id, ...d.data() }));
+      if (!s.metadata.fromCache) loaded.m = true;
+      if (loaded.p && loaded.m) clearTimeout(timer);
+      if (!isEditing()) render();
+    }, onErr);
+  }
+  // Não redesenha formulários enquanto a pessoa digita (mudanças de outros usuários aparecem ao sair)
+  const isEditing = () => (state.view === 'printerForm' || state.view === 'maintForm') && loaded.p && loaded.m;
+
+  start();
+})();
+</script>
