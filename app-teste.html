@@ -7,19 +7,23 @@
   --bg: #eef2f5; --surface: #ffffff; --fg: #17222d; --muted: #5a6b7b; --line: #d6dee6;
   --accent: #1d5c8c; --accent-fg: #ffffff; --chip: #e2ebf3;
   --ok: #1c7a43; --warn: #9a6500; --bad: #b3261e;
+  --tc: #0096d1; --tm: #c8237a; --ty: #a07f00; --tk: #17222d; --wa: #1a8f4c;
   --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
 }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
   --bg: #0f151b; --surface: #18212a; --fg: #e4eaf0; --muted: #93a3b3; --line: #2a3643;
   --accent: #5fa3db; --accent-fg: #08131d; --chip: #22303d;
-  --ok: #4cc27b; --warn: #e0a83a; --bad: #f0786e; color-scheme: dark; } }
+  --ok: #4cc27b; --warn: #e0a83a; --bad: #f0786e;
+  --tc: #1f9fd6; --tm: #d8478f; --ty: #c49a16; --tk: #e4eaf0; --wa: #3cc27a; color-scheme: dark; } }
 :root[data-theme="dark"] {
   --bg: #0f151b; --surface: #18212a; --fg: #e4eaf0; --muted: #93a3b3; --line: #2a3643;
   --accent: #5fa3db; --accent-fg: #08131d; --chip: #22303d;
-  --ok: #4cc27b; --warn: #e0a83a; --bad: #f0786e; color-scheme: dark; }
+  --ok: #4cc27b; --warn: #e0a83a; --bad: #f0786e;
+  --tc: #1f9fd6; --tm: #d8478f; --ty: #c49a16; --tk: #e4eaf0; --wa: #3cc27a; color-scheme: dark; }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 body { background: var(--bg); color: var(--fg); font: 16px/1.45 var(--sans); }
 body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--accent); }
 h1 { font-size: 1.3rem; margin: 0; text-wrap: balance; }
@@ -110,7 +114,31 @@ legend { font-weight: 600; padding: 0 4px; }
 @media (max-width: 420px) { .toner-in { grid-template-columns: 1fr 1fr; } }
 .toner-in label { gap: 4px; }
 .dot { display: inline-block; width: .7em; height: .7em; border-radius: 50%; margin-right: 5px; vertical-align: baseline; border: 1px solid var(--line); }
-.dot.c { background: #00a0dc; } .dot.m { background: #d4237a; } .dot.y { background: #f2c300; } .dot.k { background: var(--fg); }
+.dot.c { background: var(--tc); } .dot.m { background: var(--tm); } .dot.y { background: var(--ty); } .dot.k { background: var(--tk); }
+
+/* Gráficos */
+.chart { position: relative; }
+.chart svg { display: block; width: 100%; overflow: visible; }
+.chart text { fill: var(--muted); font: 11px var(--sans); }
+.chart .lbl { fill: var(--fg); font-weight: 600; }
+.chart .grid { stroke: var(--line); stroke-width: 1; }
+.chart .xh { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
+.tip { position: absolute; top: 0; pointer-events: none; background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: 8px;
+  padding: 6px 9px; font-size: .8rem; line-height: 1.35; box-shadow: 0 4px 14px rgb(0 0 0 / .12); white-space: nowrap; z-index: 2; }
+.tip b { font-family: var(--mono); }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: .85rem; }
+details.data summary { cursor: pointer; color: var(--accent); font-size: .85rem; font-weight: 600; }
+.tbl-wrap { overflow-x: auto; margin-top: 8px; }
+.tbl { border-collapse: collapse; font-size: .85rem; width: 100%; }
+.tbl th, .tbl td { padding: 5px 8px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+.tbl th:first-child, .tbl td:first-child { text-align: left; }
+.tbl td { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+/* Envio por WhatsApp */
+.btn.wa { background: transparent; color: var(--wa); border: 1px solid var(--wa); }
+.send { border-top: 1px dashed var(--line); padding-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+.send ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; }
+a.btn { text-decoration: none; display: inline-block; }
 .toner { display: flex; flex-wrap: wrap; gap: 6px; font-size: .88rem; }
 .toner .chip { display: inline-flex; align-items: center; }
 .toner-total { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
@@ -137,6 +165,7 @@ legend { font-weight: 600; padding: 0 4px; }
   <button id="tab-parts" type="button" aria-current="false">Peças</button>
 </nav>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 (() => {
   /*
@@ -225,6 +254,202 @@ legend { font-weight: 600; padding: 0 4px; }
       await new Promise((res) => setTimeout(res, 300 + Math.random() * 500));
     }
     throw { code: 'unavailable' };
+  }
+
+  // ---------- gráficos (SVG desenhado à mão) ----------
+  const TCOLOR = { c: 'var(--tc)', m: 'var(--tm)', y: 'var(--ty)', k: 'var(--tk)' };
+  const toDate = (s) => new Date(s + 'T12:00:00');
+  const fshort = (d) => d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' });
+  const compact = (n) => (Math.abs(n) >= 1e6 ? (n / 1e6).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' mi' : Math.abs(n) >= 1e4 ? Math.round(n / 1e3) + ' mil' : fmt(n));
+  function niceTicks(min, max, count, integer) {
+    if (max === min) max = min + 1;
+    const raw = (max - min) / count;
+    const pow = Math.pow(10, Math.floor(Math.log10(raw)));
+    let step = [1, 2, 2.5, 5, 10].map((s) => s * pow).find((s) => s >= raw);
+    if (integer) step = Math.max(1, Math.ceil(step));
+    const lo = Math.floor(min / step) * step, hi = Math.ceil(max / step) * step;
+    const out = [];
+    for (let v = lo; v <= hi + step / 2; v += step) out.push(+v.toFixed(6));
+    return out;
+  }
+  let charts = [];
+  // cfg: { series:[{key,name,color,points:[{d:Date,y,extra?}]}], step, integer, tip(d, rows) }
+  function drawChart(el, cfg) {
+    const W = Math.max(260, el.clientWidth || 320), H = 210;
+    const multi = cfg.series.length > 1;
+    const m = { l: 52, r: multi ? 64 : 14, t: 10, b: 26 };
+    const pts = cfg.series.flatMap((s) => s.points);
+    let x0 = Math.min(...pts.map((p) => +p.d)), x1 = Math.max(...pts.map((p) => +p.d));
+    if (x0 === x1) { x0 -= 15 * 864e5; x1 += 15 * 864e5; }
+    const ys = pts.map((p) => p.y);
+    const yt = niceTicks(cfg.zero ? 0 : Math.min(...ys), Math.max(...ys), 4, cfg.integer);
+    const y0 = yt[0], y1 = yt[yt.length - 1];
+    const X = (d) => m.l + ((+d - x0) / (x1 - x0)) * (W - m.l - m.r);
+    const Y = (v) => H - m.b - ((v - y0) / (y1 - y0 || 1)) * (H - m.t - m.b);
+    const dates = [...new Set(pts.map((p) => +p.d))].sort((a, b) => a - b);
+    // Datas no eixo: sempre a primeira e a última; as do meio só se couberem sem encostar
+    const xt = [];
+    const last = dates[dates.length - 1];
+    for (const d of dates) {
+      if (d !== dates[0] && d !== last && (X(d) - X(xt[xt.length - 1]) < 70 || X(last) - X(d) < 70)) continue;
+      if (d === last && xt.length && X(d) - X(xt[xt.length - 1]) < 70 && xt.length > 1) xt.pop();
+      if (d === last && xt.length && X(d) - X(xt[xt.length - 1]) < 70) continue;
+      xt.push(d);
+    }
+    let svg = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(cfg.label)}">`;
+    svg += yt.map((v) => `<line class="grid" x1="${m.l}" x2="${W - m.r}" y1="${Y(v)}" y2="${Y(v)}"/><text x="${m.l - 8}" y="${Y(v) + 4}" text-anchor="end">${compact(v)}</text>`).join('');
+    svg += [...new Set(xt)].map((d, i, a) => `<text x="${X(d)}" y="${H - 6}" text-anchor="${a.length > 1 && i === 0 ? 'start' : a.length > 1 && i === a.length - 1 ? 'end' : 'middle'}">${fshort(new Date(d))}</text>`).join('');
+    const ends = [];
+    for (const s of cfg.series) {
+      const p = s.points;
+      let d = `M${X(p[0].d)},${Y(p[0].y)}`;
+      for (let i = 1; i < p.length; i++) d += cfg.step ? `H${X(p[i].d)}V${Y(p[i].y)}` : `L${X(p[i].d)},${Y(p[i].y)}`;
+      svg += `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+      svg += p.map((q) => `<circle cx="${X(q.d)}" cy="${Y(q.y)}" r="4" fill="${s.color}" stroke="var(--surface)" stroke-width="2"/>`).join('');
+      ends.push({ s, y: Y(p[p.length - 1].y), x: X(p[p.length - 1].d) });
+    }
+    if (multi) { // rótulos no fim de cada linha, sem sobrepor
+      ends.sort((a, b) => a.y - b.y);
+      for (let i = 1; i < ends.length; i++) if (ends[i].y - ends[i - 1].y < 13) ends[i].y = ends[i - 1].y + 13;
+      svg += ends.map((e) => `<text class="lbl" x="${e.x + 8}" y="${e.y + 4}">${esc(e.s.name)}</text>`).join('');
+    }
+    svg += `<line class="xh" id="xh" y1="${m.t}" y2="${H - m.b}" visibility="hidden"/><rect x="${m.l}" y="0" width="${W - m.l - m.r}" height="${H}" fill="transparent" style="cursor:crosshair"/></svg>`;
+    el.innerHTML = svg + '<div class="tip" hidden></div>';
+    const tip = el.querySelector('.tip'), xh = el.querySelector('#xh'), hit = el.querySelector('rect');
+    const show = (ev) => {
+      const r = el.getBoundingClientRect();
+      const mx = ev.clientX - r.left;
+      let best = dates[0];
+      for (const d of dates) if (Math.abs(X(d) - mx) < Math.abs(X(best) - mx)) best = d;
+      const rows = cfg.series.map((s) => ({ s, p: s.points.filter((q) => +q.d <= best).pop() })).filter((r) => r.p);
+      xh.setAttribute('x1', X(best)); xh.setAttribute('x2', X(best)); xh.setAttribute('visibility', 'visible');
+      tip.innerHTML = cfg.tip(new Date(best), rows);
+      tip.hidden = false;
+      const tw = tip.offsetWidth;
+      tip.style.left = Math.min(Math.max(0, X(best) + 12 + tw > W ? X(best) - tw - 12 : X(best) + 12), W - tw) + 'px';
+    };
+    hit.addEventListener('pointermove', show);
+    hit.addEventListener('pointerdown', show);
+    hit.addEventListener('pointerleave', () => { tip.hidden = true; xh.setAttribute('visibility', 'hidden'); });
+  }
+  function renderCharts() { for (const c of charts) { const el = document.getElementById(c.id); if (el) drawChart(el, c.cfg); } }
+  let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(renderCharts, 150); });
+
+  function printerCharts(p, ms) {
+    const asc = ms.slice().sort((a, b) => (a.date === b.date ? a.counter - b.counter : a.date < b.date ? -1 : 1));
+    charts = [];
+    let html = '';
+    // 1) Evolução do contador
+    if (asc.length >= 2) {
+      charts.push({ id: 'ch-counter', cfg: {
+        label: 'Evolução do contador de páginas', zero: false, integer: true,
+        series: [{ key: 'counter', name: 'Contador', color: 'var(--accent)', points: asc.map((m, i) => ({ d: toDate(m.date), y: m.counter, extra: i ? m.counter - asc[i - 1].counter : m.counter - p.installCounter, no: m.number })) }],
+        tip: (d, rows) => `${fshort(d)}${rows[0].p.no ? ' · Nº ' + String(rows[0].p.no).padStart(4, '0') : ''}<br>Contador: <b>${fmt(rows[0].p.y)}</b><br>+${fmt(rows[0].p.extra)} páginas desde a anterior`,
+      } });
+      html += `<section class="panel"><h2>Evolução do contador de páginas</h2>
+        <p class="muted">Contador registrado em cada relatório de visita.</p>
+        <div class="chart" id="ch-counter"></div>
+        <details class="data"><summary>Ver dados em tabela</summary><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Data</th><th>Relatório</th><th>Contador</th><th>Páginas no período</th></tr></thead><tbody>
+          ${asc.map((m, i) => `<tr><td>${fdate(m.date)}</td><td>${m.number ? String(m.number).padStart(4, '0') : '—'}</td><td>${fmt(m.counter)}</td><td>${fmt(i ? m.counter - asc[i - 1].counter : m.counter - p.installCounter)}</td></tr>`).join('')}
+        </tbody></table></div></details></section>`;
+    } else {
+      html += `<section class="panel"><h2>Evolução do contador de páginas</h2><p class="muted">O gráfico aparece a partir do 2º relatório de visita desta impressora.</p></section>`;
+    }
+    // 2) Evolução das trocas de toner (acumulado por cor)
+    const colors = TONER.filter(([k]) => asc.some((m) => Number(m.toner?.[k]) > 0));
+    if (colors.length) {
+      const series = colors.map(([k, n]) => {
+        let acc = 0;
+        return { key: k, name: n, color: TCOLOR[k], points: asc.map((m) => ({ d: toDate(m.date), y: (acc += Number(m.toner?.[k]) || 0) })) };
+      });
+      charts.push({ id: 'ch-toner', cfg: {
+        label: 'Evolução das trocas de toner', step: true, zero: true, integer: true, series,
+        tip: (d, rows) => `${fshort(d)}<br>` + rows.map((r) => `<span class="dot ${r.s.key}"></span>${r.s.name}: <b>${r.p.y}</b> no total`).join('<br>'),
+      } });
+      html += `<section class="panel"><h2>Evolução das trocas de toner</h2>
+        <p class="muted">Total acumulado de toners trocados, por cor, ao longo dos relatórios.</p>
+        ${colors.length > 1 ? `<div class="legend">${colors.map(([k, n]) => `<span><span class="dot ${k}"></span>${n}</span>`).join('')}</div>` : ''}
+        <div class="chart" id="ch-toner"></div>
+        <details class="data"><summary>Ver dados em tabela</summary><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Data</th>${colors.map(([, n]) => `<th>${n}</th>`).join('')}</tr></thead><tbody>
+          ${asc.filter((m) => colors.some(([k]) => Number(m.toner?.[k]) > 0)).map((m) => `<tr><td>${fdate(m.date)}</td>${colors.map(([k]) => `<td>${Number(m.toner?.[k]) || 0}</td>`).join('')}</tr>`).join('')}
+        </tbody></table></div></details></section>`;
+    } else if (asc.length) {
+      html += `<section class="panel"><h2>Evolução das trocas de toner</h2><p class="muted">Nenhuma troca de toner registrada nos relatórios desta impressora.</p></section>`;
+    }
+    return html;
+  }
+
+  // ---------- PDF do relatório ----------
+  function buildPdf(m, p, cust) {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+    const L = 15, R = 195, W = R - L;
+    let y = 15;
+    const ensure = (h) => { if (y + h > 280) { doc.addPage(); y = 15; } };
+    const title = (t) => { ensure(12); y += 3; doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(90, 107, 123); doc.text(t.toUpperCase(), L, y); y += 1.5; doc.setDrawColor(214, 222, 230); doc.line(L, y, R, y); y += 5; doc.setTextColor(23, 34, 45); };
+    const para = (t) => { doc.setFont('helvetica', 'normal'); doc.setFontSize(10.5); for (const line of doc.splitTextToSize(t || '—', W)) { ensure(5.5); doc.text(line, L, y); y += 5; } y += 1; };
+    const pairs = (list) => {
+      doc.setFontSize(10);
+      const rows = list.filter(([, v]) => v);
+      for (let i = 0; i < rows.length; i += 2) {
+        ensure(6);
+        rows.slice(i, i + 2).forEach(([k, v], j) => {
+          const x = L + j * (W / 2);
+          doc.setFont('helvetica', 'bold'); doc.text(k + ':', x, y);
+          doc.setFont('helvetica', 'normal'); doc.text(doc.splitTextToSize(String(v), W / 2 - 38)[0], x + 35, y);
+        });
+        y += 5.5;
+      }
+    };
+    // Cabeçalho
+    doc.setFillColor(29, 92, 140); doc.rect(0, 0, 210, 26, 'F');
+    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(15);
+    doc.text('RELATÓRIO DE VISITA TÉCNICA', L, 12);
+    doc.setFontSize(11); doc.text(repNo(m), R, 12, { align: 'right' });
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
+    doc.text('Data da visita: ' + fdate(m.date) + (m.technician ? '   ·   Técnico: ' + m.technician : ''), L, 20);
+    doc.setTextColor(23, 34, 45); y = 34;
+
+    title('Cliente');
+    pairs([['Nome', cust?.name || customerName(p)], ['CPF/CNPJ', cust?.doc], ['Telefone', cust?.phone], ['E-mail', cust?.email], ['Contato', cust?.contact], ['Cidade', cust?.city]]);
+    if (cust?.address) pairs([['Endereço', cust.address]]);
+    title('Equipamento');
+    const ms = maintsOf(p.id);
+    const idx = ms.indexOf(m);
+    const prev = ms[idx + 1]?.counter ?? p.installCounter;
+    pairs([['Modelo', p.model || '—'], ['Nº de série', p.serial], ['Local', p.location], ['Contador', fmt(m.counter)], ['Págs. no período', fmt(m.counter - prev)]]);
+    title('Causa'); para(m.cause);
+    title('Serviço realizado'); para(m.summary);
+    if ((m.parts || []).length) {
+      title('Peças trocadas');
+      doc.setFontSize(9.5); doc.setFont('helvetica', 'bold');
+      const cols = [L, L + 38, L + 128, L + 148];
+      ['Código', 'Descrição', 'Qtd', 'Vida útil (págs)'].forEach((h, i) => doc.text(h, cols[i], y)); y += 5;
+      doc.setFont('helvetica', 'normal');
+      for (const pt of m.parts) { ensure(5.5); doc.text(pt.code, cols[0], y); doc.text(doc.splitTextToSize(pt.description || '—', 86)[0], cols[1], y); doc.text(String(pt.qty), cols[2], y); doc.text(pt.life ? fmt(pt.life) : '—', cols[3], y); y += 5; }
+      y += 1;
+    }
+    const tn = TONER.filter(([k]) => Number(m.toner?.[k]) > 0);
+    if (tn.length) { title('Controle de toner'); para(tn.map(([k, n]) => `${n}: ${m.toner[k]} troca${m.toner[k] == 1 ? '' : 's'}`).join('    ')); }
+    title('Observações: situação final'); para(m.notes);
+    // Assinaturas
+    ensure(30); y += 18;
+    doc.setDrawColor(120, 130, 140);
+    doc.line(L, y, L + 80, y); doc.line(R - 80, y, R, y);
+    doc.setFontSize(9); doc.text('Técnico responsável' + (m.technician ? ': ' + m.technician : ''), L, y + 5); doc.text('Cliente', R - 80, y + 5);
+    // Rodapé
+    const n = doc.getNumberOfPages();
+    for (let i = 1; i <= n; i++) { doc.setPage(i); doc.setFontSize(8); doc.setTextColor(120, 130, 140); doc.text(`${repNo(m)} · página ${i} de ${n}`, R, 290, { align: 'right' }); }
+    return doc.output('blob');
+  }
+  const pdfName = (m, p) => `Relatorio-${m.number ? String(m.number).padStart(4, '0') : 'visita'}-${(p.serial || '').replace(/[^A-Za-z0-9-]/g, '')}.pdf`;
+  function waLink(m, p, cust) {
+    let ph = (cust?.phone || '').replace(/\D/g, '');
+    if (ph.length === 10 || ph.length === 11) ph = '55' + ph;
+    const msg = `Olá${cust?.contact ? ', ' + cust.contact : ''}! Segue o Relatório de Visita Técnica ${repNo(m)}, de ${fdate(m.date)}.\n` +
+      `Equipamento: ${p.model || 'impressora'} (série ${p.serial}).\n` +
+      (m.cause ? `Causa: ${m.cause}\n` : '') + (m.notes ? `Situação final: ${m.notes}\n` : '') + `O PDF com o relatório completo vai em anexo.`;
+    return `https://wa.me/${ph.length >= 12 ? ph : ''}?text=${encodeURIComponent(msg)}`;
   }
 
   // ---------- navegação ----------
@@ -407,6 +632,7 @@ legend { font-weight: 600; padding: 0 4px; }
       ${life.length ? `<section class="panel"><h2>Peças: páginas desde a última troca</h2>
         <ul class="list">${life.map((r) => `<li class="row"><div><b class="num">${esc(r.code)}</b> <span class="muted">${esc(r.description)}</span><div class="muted">Trocada em ${fdate(r.date)} com <span class="num">${fmt(r.at)}</span>${r.life ? ` · vida útil <span class="num">${fmt(r.life)}</span>` : ''}</div></div>
           <span class="chip bold num ${r.pct != null ? 'life-' + lifeClass(r.pct) : ''}">${fmt(r.pages)}${r.pct != null ? ' · ' + Math.round(r.pct * 100) + '%' : ''}</span></li>`).join('')}</ul></section>` : ''}
+      ${printerCharts(p, ms)}
       ${TONER.some(([k]) => tonerTotals[k] > 0) ? `<section class="panel"><h2>Controle de toner</h2>
         <p class="muted">Total de toners trocados nesta impressora, somando todos os relatórios.</p>
         <div class="toner-total">${TONER.map(([k, n]) => `<div><span><span class="dot ${k}"></span>${n}</span><span class="num">${tonerTotals[k]}</span>
@@ -424,6 +650,15 @@ legend { font-weight: 600; padding: 0 4px; }
           ${(m.parts || []).length ? `<p class="field-label">Peças trocadas</p><ul class="parts">${m.parts.map((pt) => `<li>${pt.qty}× <b class="num">${esc(pt.code)}</b> ${esc(pt.description)}${pt.life ? ` <span class="muted">(vida útil <span class="num">${fmt(pt.life)}</span> págs)</span>` : ''}</li>`).join('')}</ul>` : ''}
           ${tonerView(m.toner)}
           ${m.notes ? `<p class="field-label">Observações: situação final</p><p class="rep-text">${esc(m.notes)}</p>` : ''}
+          <div><button class="btn wa sm" data-send="${m._key}" aria-expanded="false">Enviar PDF por WhatsApp</button></div>
+          <div class="send" data-send-box="${m._key}" hidden>
+            <ol>
+              <li><button class="btn sm" data-pdf="${m._key}">Baixar o PDF do relatório</button> <span class="hint" data-pdf-msg="${m._key}"></span></li>
+              <li><a class="btn wa sm" href="${esc(waLink(m, p, cust))}" target="_blank" rel="noopener">Abrir conversa no WhatsApp${cust?.phone ? ' com ' + esc(cust.name) : ''}</a></li>
+              <li class="hint">No WhatsApp, toque no clipe 📎, escolha <b>Documento</b> e anexe o PDF baixado.</li>
+            </ol>
+            ${cust?.phone ? `<span class="hint">Número usado: ${esc(cust.phone)}. A mensagem já vai escrita.</span>` : '<span class="hint">Este cliente não tem telefone cadastrado: o WhatsApp vai pedir para você escolher o contato.</span>'}
+          </div>
           ${isAdmin ? `<div class="actions"><button class="link sm" data-edit="${m._key}">Editar</button><button class="link bad" data-del="${m._key}">Excluir</button></div>` : ''}
         </li>`;
       }).join('')}</ul>`}`;
@@ -433,6 +668,26 @@ legend { font-weight: 600; padding: 0 4px; }
     const a = document.getElementById('addm'); if (a) a.onclick = () => { state.editMaint = null; go('maintForm', p.id, back); };
     $view.querySelectorAll('[data-edit]').forEach((b) => (b.onclick = () => { state.editMaint = b.dataset.edit; go('maintForm', p.id, back); }));
     $view.querySelectorAll('[data-del]').forEach((b) => arm(b, 'Toque de novo para excluir', async () => { await maintRef(b.dataset.del).delete(); }));
+    renderCharts();
+    $view.querySelectorAll('[data-send]').forEach((b) => (b.onclick = () => {
+      const box = $view.querySelector(`[data-send-box="${b.dataset.send}"]`);
+      box.hidden = !box.hidden;
+      b.setAttribute('aria-expanded', String(!box.hidden));
+    }));
+    $view.querySelectorAll('[data-pdf]').forEach((b) => (b.onclick = async () => {
+      const msg = $view.querySelector(`[data-pdf-msg="${b.dataset.pdf}"]`);
+      const m = ms.find((x) => x._key === b.dataset.pdf);
+      if (!window.jspdf) { msg.textContent = 'Não foi possível carregar o gerador de PDF. Verifique a conexão e recarregue a página.'; return; }
+      const dl = await window.claude?.use?.('downloads');
+      if (!dl) { msg.textContent = 'Este aparelho não permite baixar arquivos pelo app. Tente pelo navegador do computador ou do celular.'; return; }
+      b.disabled = true; msg.textContent = 'Gerando PDF…';
+      try {
+        await dl.save({ filename: pdfName(m, p), data: buildPdf(m, p, cust) });
+        msg.textContent = 'PDF salvo. Agora abra o WhatsApp no passo 2.';
+      } catch (err) {
+        msg.textContent = err?.code === 'declined' ? 'Download cancelado.' : 'Não foi possível salvar o PDF. Tente de novo.';
+      } finally { b.disabled = false; }
+    }));
   }
 
   // ---------- IMPRESSORAS: cadastro / edição ----------
