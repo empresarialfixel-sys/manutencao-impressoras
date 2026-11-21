@@ -627,17 +627,47 @@ a.btn { text-decoration: none; display: inline-block; }
     if (!c || !isAdmin) return;
     const ps = printersOf(c.id);
     const nRep = ps.reduce((s, p) => s + maintsOf(p.id).length, 0);
+    confirmDelete({
+      title: 'Excluir cliente',
+      what: `<b>${esc(c.name)}</b>`,
+      details: ps.length ? `<p class="muted">Também serão apagados:</p><ul><li>${ps.length} impressora${ps.length > 1 ? 's' : ''} (${esc(ps.map((p) => p.serial).join(', '))})</li><li>${nRep} relatório${nRep === 1 ? '' : 's'} de visita</li></ul>` : '<p class="muted">Este cliente não tem impressoras.</p>',
+      run: async () => {
+        for (const p of ps) {
+          for (const m of maintsOf(p.id)) await maintRef(m._key).delete();
+          await db.collection('printers').doc(p.id).delete();
+        }
+        await db.collection('customers').doc(c.id).delete();
+      },
+      after: () => go('customers'),
+    });
+  }
+  function confirmDeletePrinter(p) {
+    if (!p || !isAdmin) return;
+    const nRep = maintsOf(p.id).length;
+    confirmDelete({
+      title: 'Excluir impressora',
+      what: `a impressora <b>${esc(p.model || 'sem modelo')}</b>, série <b class="num">${esc(p.serial)}</b>, do cliente <b>${esc(customerName(p))}</b>`,
+      details: nRep ? `<p class="muted">Também serão apagados:</p><ul><li>${nRep} relatório${nRep === 1 ? '' : 's'} de visita desta impressora</li></ul>` : '<p class="muted">Esta impressora não tem relatórios de visita.</p>',
+      run: async () => {
+        for (const m of maintsOf(p.id)) await maintRef(m._key).delete();
+        await db.collection('printers').doc(p.id).delete();
+      },
+      after: () => (customerOf(p) ? go('customer', p.customerId) : go('printers')),
+    });
+  }
+  // Janela de confirmação com senha de exclusão (usada para clientes e impressoras)
+  function confirmDelete({ title, what, details, run, after }) {
     if (!deleteLock) {
       const bg = openModal(`<h2>Senha de exclusão não definida</h2>
-        <p>Para excluir clientes, um administrador precisa primeiro criar a senha de exclusão na tela <b>Empresa</b>.</p>
+        <p>Para excluir clientes e impressoras, um administrador precisa primeiro criar a senha de exclusão na tela <b>Empresa</b>.</p>
         <button class="btn" id="md-go">Definir senha agora</button><button class="btn ghost" id="md-cancel">Cancelar</button>`);
       bg.querySelector('#md-go').onclick = () => { closeModal(); logoDraft = undefined; go('company'); };
       bg.querySelector('#md-cancel').onclick = closeModal;
       return;
     }
-    const bg = openModal(`<h2>Excluir cliente</h2>
-      <p>Você vai excluir <b>${esc(c.name)}</b>. Isso não pode ser desfeito.</p>
-      ${ps.length ? `<p class="muted">Também serão apagados:</p><ul><li>${ps.length} impressora${ps.length > 1 ? 's' : ''} (${esc(ps.map((p) => p.serial).join(', '))})</li><li>${nRep} relatório${nRep === 1 ? '' : 's'} de visita</li></ul>` : '<p class="muted">Este cliente não tem impressoras.</p>'}
+    const bg = openModal(`<h2>${title}</h2>
+      <p>Você vai excluir ${what}. Isso não pode ser desfeito.</p>
+      ${details}
       <form id="md-f">
         <label>Senha de exclusão<input id="md-pw" type="password" autocomplete="off" required></label>
         <div id="md-err"></div>
@@ -656,13 +686,9 @@ a.btn { text-decoration: none; display: inline-block; }
       if (!(await checkPw(pw.value))) { ok.disabled = false; pw.select(); return err('Senha incorreta.'); }
       ok.textContent = 'Excluindo…';
       try {
-        for (const p of ps) {
-          for (const m of maintsOf(p.id)) await maintRef(m._key).delete();
-          await db.collection('printers').doc(p.id).delete();
-        }
-        await db.collection('customers').doc(c.id).delete();
+        await run();
         closeModal();
-        go('customers');
+        after();
       } catch (e) { ok.disabled = false; ok.textContent = 'Excluir definitivamente'; err(dbErr(e)); }
     };
   }
@@ -670,7 +696,7 @@ a.btn { text-decoration: none; display: inline-block; }
   function companyPwPanel() {
     return `<section class="panel" id="pw-panel">
       <h2>Senha de exclusão</h2>
-      <p class="muted">Pedida sempre que um administrador for excluir um cliente. ${deleteLock ? 'Uma senha já está definida.' : '<b>Ainda não definida.</b>'}</p>
+      <p class="muted">Pedida sempre que um administrador for excluir um cliente ou uma impressora. ${deleteLock ? 'Uma senha já está definida.' : '<b>Ainda não definida.</b>'}</p>
       <form id="pw-f">
         ${deleteLock ? '<label>Senha atual<input id="pw-cur" type="password" autocomplete="off" required></label>' : ''}
         <div class="two">
@@ -744,13 +770,14 @@ a.btn { text-decoration: none; display: inline-block; }
         ${!c.doc && !c.phone && !c.email && !c.address && !c.city && !c.contact && !c.notes ? '<p class="muted">Nenhum dado de contato cadastrado.</p>' : ''}
       </section>
       <div class="head"><h2>Impressoras (${ps.length})</h2>${isAdmin ? '<button class="btn sm" id="addp">+ Adicionar impressora</button>' : ''}</div>
-      ${ps.length === 0 ? '<p class="muted">Nenhuma impressora neste cliente.</p>' : printerList(ps, false)}
+      ${ps.length === 0 ? '<p class="muted">Nenhuma impressora neste cliente.</p>' : printerList(ps, false, true)}
       ${isAdmin ? '<button class="btn danger" id="delc">Excluir cliente</button>' : ''}`;
     document.getElementById('back').onclick = () => go('customers');
     const dc = document.getElementById('delc'); if (dc) dc.onclick = () => confirmDeleteCustomer(c);
     const e = document.getElementById('edit'); if (e) e.onclick = () => go('customerForm', c.id, { view: 'customer', id: c.id });
     const a = document.getElementById('addp'); if (a) a.onclick = () => { state.newFor = c.id; go('printerForm', null, { view: 'customer', id: c.id }); };
     bindPrinterItems({ view: 'customer', id: c.id });
+    $view.querySelectorAll('[data-delp]').forEach((b) => (b.onclick = () => confirmDeletePrinter(printers.find((p) => p.id === b.dataset.delp))));
   }
 
   // ---------- CLIENTES: cadastro / edição ----------
@@ -790,16 +817,16 @@ a.btn { text-decoration: none; display: inline-block; }
   }
 
   // ---------- IMPRESSORAS: lista ----------
-  function printerList(ps, showCustomer = true) {
+  function printerList(ps, showCustomer = true, withDelete = false) {
     return `<ul class="list">${ps.map((p) => {
       const ms = maintsOf(p.id);
       const st = printerStatus(p);
-      return `<li><button class="item ${st.cls}" data-pid="${p.id}">
+      return `<li class="cust-li"><button class="item ${st.cls}" data-pid="${p.id}">
         <div class="row"><strong>${esc(showCustomer ? customerName(p) : (p.model || 'Modelo não informado'))}</strong><span class="chip num">${esc(p.serial)}</span></div>
         <div class="muted">${esc((showCustomer ? [p.model, p.location] : [p.location]).filter(Boolean).join(' · ') || '—')}</div>
         <div class="meta"><span>Contador: <span class="num">${fmt(currentCounter(p))}</span></span><span>Última visita: ${fdate(ms[0]?.date)}</span></div>
         <div><span class="status ${st.cls}">${st.label}</span></div>
-      </button></li>`;
+      </button>${withDelete && isAdmin ? `<button class="link bad" data-delp="${p.id}">Excluir impressora</button>` : ''}</li>`;
     }).join('')}</ul>`;
   }
   function bindPrinterItems(back) { $view.querySelectorAll('[data-pid]').forEach((b) => (b.onclick = () => go('printer', b.dataset.pid, back))); }
@@ -950,11 +977,7 @@ a.btn { text-decoration: none; display: inline-block; }
       } catch (err) { document.getElementById('save').disabled = false; showErr(dbErr(err)); }
     };
     const del = document.getElementById('del');
-    if (del) arm(del, 'Toque de novo: apaga a impressora e todo o histórico', async () => {
-      for (const m of maintsOf(p.id)) await maintRef(m._key).delete();
-      await db.collection('printers').doc(p.id).delete();
-      go('customer', p.customerId);
-    });
+    if (del) del.onclick = () => confirmDeletePrinter(p);
   }
 
   // ---------- MANUTENÇÃO: registrar / editar ----------
