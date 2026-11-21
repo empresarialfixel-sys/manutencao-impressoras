@@ -24,6 +24,13 @@
 
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
+.top-r { display: flex; align-items: center; gap: 8px; }
+.role-btn { background: transparent; color: inherit; border: 1px solid currentColor; border-radius: 999px; font: 600 .78rem var(--sans); padding: 2px 10px; cursor: pointer; }
+.logo-box { border: 1px dashed var(--line); border-radius: 10px; padding: 12px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.logo-box img { max-width: 180px; max-height: 70px; background: #ffffff; border-radius: 6px; padding: 4px; }
+.pdf-preview { border: 1px solid var(--line); border-radius: 8px; background: #ffffff; color: #17222d; padding: 12px; display: flex; gap: 12px; align-items: center; }
+.pdf-preview img { max-width: 120px; max-height: 50px; }
+.pdf-preview small { color: #5a6b7b; display: block; }
 body { background: var(--bg); color: var(--fg); font: 16px/1.45 var(--sans); }
 body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--accent); }
 h1 { font-size: 1.3rem; margin: 0; text-wrap: balance; }
@@ -55,7 +62,7 @@ main { max-width: 720px; margin: 0 auto; padding-block: 16px 96px;
 .link.sm { font-size: .85rem; font-weight: 500; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-input, textarea, select { font: inherit; color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: .7rem .75rem; width: 100%; min-width: 0; }
+input, textarea, select { font: inherit; font-weight: 400; color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: .7rem .75rem; width: 100%; min-width: 0; }
 label { display: flex; flex-direction: column; gap: 5px; font-weight: 600; font-size: .92rem; }
 .hint { font-weight: 400; font-size: .85rem; color: var(--muted); }
 .hint.bad { color: var(--bad); }
@@ -157,7 +164,7 @@ a.btn { text-decoration: none; display: inline-block; }
 .bar > span.warn { background: var(--warn); } .bar > span.bad { background: var(--bad); }
 </style>
 
-<div class="top"><b>Manutenção de Impressoras</b><span class="role" id="role" hidden></span></div>
+<div class="top"><b id="brand">Manutenção de Impressoras</b><span class="top-r"><button class="role-btn" id="co-btn" type="button" hidden>Empresa</button><span class="role" id="role" hidden></span></span></div>
 <main id="view" aria-live="polite"><p class="muted">Carregando dados…</p></main>
 <nav class="tabs">
   <button id="tab-customers" type="button" aria-current="true">Clientes</button>
@@ -401,14 +408,34 @@ a.btn { text-decoration: none; display: inline-block; }
         y += 5.5;
       }
     };
-    // Cabeçalho
-    doc.setFillColor(29, 92, 140); doc.rect(0, 0, 210, 26, 'F');
-    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(15);
-    doc.text('RELATÓRIO DE VISITA TÉCNICA', L, 12);
-    doc.setFontSize(11); doc.text(repNo(m), R, 12, { align: 'right' });
+    // Cabeçalho da empresa (logo + nome + contatos)
+    let top = 0;
+    const co = company || {};
+    if (co.name || co.logo) {
+      let tx = L;
+      const hdrH = 22;
+      if (co.logo) {
+        const maxW = 50, maxH = hdrH;
+        const ratio = (co.logoW || 3) / (co.logoH || 1);
+        let w = maxW, h = w / ratio;
+        if (h > maxH) { h = maxH; w = h * ratio; }
+        try { doc.addImage(co.logo, co.logo.startsWith('data:image/png') ? 'PNG' : 'JPEG', L, 10 + (maxH - h) / 2, w, h, 'logo', 'FAST'); tx = L + w + 6; } catch {}
+      }
+      doc.setTextColor(23, 34, 45); doc.setFont('helvetica', 'bold'); doc.setFontSize(14);
+      if (co.name) doc.text(co.name, tx, 16);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(90, 107, 123);
+      const lines = [[co.doc && 'CNPJ: ' + co.doc, co.phone, co.email].filter(Boolean).join('   ·   '), [co.address, co.city].filter(Boolean).join(' - ')].filter(Boolean);
+      lines.forEach((t, i) => doc.text(doc.splitTextToSize(t, R - tx)[0], tx, 22 + i * 4.5));
+      top = 10 + hdrH + 4;
+    }
+    // Faixa do relatório
+    doc.setFillColor(29, 92, 140); doc.rect(0, top, 210, 22, 'F');
+    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(14);
+    doc.text('RELATÓRIO DE VISITA TÉCNICA', L, top + 9.5);
+    doc.setFontSize(11); doc.text(repNo(m), R, top + 9.5, { align: 'right' });
     doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
-    doc.text('Data da visita: ' + fdate(m.date) + (m.technician ? '   ·   Técnico: ' + m.technician : ''), L, 20);
-    doc.setTextColor(23, 34, 45); y = 34;
+    doc.text('Data da visita: ' + fdate(m.date) + (m.technician ? '   ·   Técnico: ' + m.technician : ''), L, top + 16.5);
+    doc.setTextColor(23, 34, 45); y = top + 30;
 
     title('Cliente');
     pairs([['Nome', cust?.name || customerName(p)], ['CPF/CNPJ', cust?.doc], ['Telefone', cust?.phone], ['E-mail', cust?.email], ['Contato', cust?.contact], ['Cidade', cust?.city]]);
@@ -466,7 +493,7 @@ a.btn { text-decoration: none; display: inline-block; }
       $view.innerHTML = errorMsg ? `<div class="notice bad">${esc(errorMsg)}</div>` : '<p class="muted">Carregando dados…</p>';
       return;
     }
-    const views = { customers: viewCustomers, customer: viewCustomer, customerForm: viewCustomerForm, printers: viewPrinters, printer: viewPrinter, printerForm: viewPrinterForm, maintForm: viewMaintForm, parts: viewParts };
+    const views = { company: viewCompany, customers: viewCustomers, customer: viewCustomer, customerForm: viewCustomerForm, printers: viewPrinters, printer: viewPrinter, printerForm: viewPrinterForm, maintForm: viewMaintForm, parts: viewParts };
     (views[state.view] || viewCustomers)();
   }
   function bindSearch(id, key, redraw) {
@@ -483,6 +510,87 @@ a.btn { text-decoration: none; display: inline-block; }
   }
 
   // ---------- CLIENTES: lista ----------
+  // ---------- EMPRESA (só administrador) ----------
+  let company = null;
+  let logoDraft = undefined; // undefined = sem mudança; null = remover; objeto = novo logo
+  function viewCompany() {
+    if (!isAdmin) return go('customers');
+    const co = company || {};
+    const logo = logoDraft === undefined ? (co.logo ? { logo: co.logo, logoW: co.logoW, logoH: co.logoH } : null) : logoDraft;
+    const f = (id, label, v, extra = '') => `<label>${label}<input id="e-${id}" value="${esc(v)}" ${extra}></label>`;
+    $view.innerHTML = `
+      <h1>Dados da empresa</h1>
+      <p class="muted">Aparecem no cabeçalho do PDF dos relatórios de visita. Só administradores podem alterar.</p>
+      <form id="f">
+        ${f('name', 'Nome da empresa *', co.name, 'required')}
+        <div class="two">${f('doc', 'CNPJ', co.doc, 'inputmode="numeric"')}${f('phone', 'Telefone / WhatsApp', co.phone, 'type="tel"')}</div>
+        <div class="two">${f('email', 'E-mail', co.email, 'type="email"')}${f('city', 'Cidade', co.city)}</div>
+        ${f('address', 'Endereço', co.address)}
+        <label>Logotipo
+          <div class="logo-box">
+            ${logo ? `<img src="${logo.logo}" alt="Logotipo atual">` : '<span class="hint">Nenhum logotipo enviado.</span>'}
+            <input id="e-logo" type="file" accept="image/png,image/jpeg,image/webp" style="max-width:260px">
+            ${logo ? '<button type="button" class="link bad" id="e-rmlogo">Remover logotipo</button>' : ''}
+          </div>
+          <span class="hint">PNG ou JPG. De preferência com fundo branco ou transparente. A imagem é reduzida automaticamente.</span>
+        </label>
+        <p class="field-label">Prévia do cabeçalho do PDF</p>
+        <div class="pdf-preview">${logo ? `<img src="${logo.logo}" alt="">` : ''}<div><b id="pv-name">${esc(co.name || 'Nome da empresa')}</b><small>${esc([co.doc && 'CNPJ: ' + co.doc, co.phone, co.email].filter(Boolean).join(' · '))}</small></div></div>
+        <div id="err"></div>
+        <button class="btn" id="save">Salvar</button>
+        <button class="btn ghost" type="button" id="cancel">Cancelar</button>
+      </form>`;
+    document.getElementById('e-name').oninput = (e) => (document.getElementById('pv-name').textContent = e.target.value || 'Nome da empresa');
+    document.getElementById('cancel').onclick = () => { logoDraft = undefined; go('customers'); };
+    const rm = document.getElementById('e-rmlogo');
+    if (rm) rm.onclick = () => { logoDraft = null; viewCompany(); };
+    document.getElementById('e-logo').onchange = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      try { logoDraft = await shrinkImage(file); keepFields(); viewCompany(); restoreFields(); }
+      catch { showErr('Não foi possível ler essa imagem. Tente um arquivo PNG ou JPG.'); }
+    };
+    document.getElementById('f').onsubmit = async (ev) => {
+      ev.preventDefault();
+      const val = (k) => document.getElementById('e-' + k).value.trim();
+      const data = { name: val('name'), doc: val('doc'), phone: val('phone'), email: val('email'), city: val('city'), address: val('address') };
+      const lg = logoDraft === undefined ? (co.logo ? { logo: co.logo, logoW: co.logoW, logoH: co.logoH } : null) : logoDraft;
+      if (lg) Object.assign(data, lg);
+      document.getElementById('save').disabled = true;
+      try { await db.doc('settings/company').set(data); logoDraft = undefined; go('customers'); }
+      catch (err) { document.getElementById('save').disabled = false; showErr(dbErr(err)); }
+    };
+  }
+  let fieldCache = null;
+  function keepFields() { fieldCache = {}; $view.querySelectorAll('input[id^="e-"]:not([type=file])').forEach((i) => (fieldCache[i.id] = i.value)); }
+  function restoreFields() {
+    if (!fieldCache) return;
+    for (const [id, v] of Object.entries(fieldCache)) { const i = document.getElementById(id); if (i) i.value = v; }
+    document.getElementById('pv-name').textContent = fieldCache['e-name'] || 'Nome da empresa';
+    fieldCache = null;
+  }
+  // Reduz o logo para caber no banco de dados (máx. 600×240 px)
+  function shrinkImage(file) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const k = Math.min(1, 600 / img.width, 240 / img.height);
+        const w = Math.max(1, Math.round(img.width * k)), h = Math.max(1, Math.round(img.height * k));
+        const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+        const ctx = cv.getContext('2d'); ctx.drawImage(img, 0, 0, w, h);
+        let url = cv.toDataURL('image/png');
+        if (url.length > 150000) { // muito grande: JPEG com fundo branco
+          ctx.globalCompositeOperation = 'destination-over'; ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, w, h);
+          url = cv.toDataURL('image/jpeg', 0.85);
+        }
+        URL.revokeObjectURL(img.src);
+        resolve({ logo: url, logoW: w, logoH: h });
+      };
+      img.onerror = reject;
+      img.src = URL.createObjectURL(file);
+    });
+  }
+
   function viewCustomers() {
     const t = state.q.trim().toLowerCase();
     const rows = customers.filter((c) => !t || [c.name, c.doc, c.phone, c.city, c.contact].some((v) => (v || '').toLowerCase().includes(t))).sort(byName);
@@ -899,7 +1007,7 @@ a.btn { text-decoration: none; display: inline-block; }
   function lsSet(k, v) { try { localStorage.setItem(k, v); } catch {} }
 
   // ---------- dados ----------
-  const isEditing = () => ['printerForm', 'maintForm', 'customerForm'].includes(state.view) && loaded.c && loaded.p && loaded.l && loaded.t;
+  const isEditing = () => ['printerForm', 'maintForm', 'customerForm', 'company'].includes(state.view) && loaded.c && loaded.p && loaded.l && loaded.t;
   const refresh = () => { if (!isEditing()) render(); };
   const onErr = () => { errorMsg = 'Não foi possível carregar os dados. Recarregue a página.'; render(); };
 
@@ -925,6 +1033,12 @@ a.btn { text-decoration: none; display: inline-block; }
 
     const timer = setTimeout(() => { if (!loaded.c || !loaded.p || !loaded.l || !loaded.t) { errorMsg = 'Os dados estão demorando para carregar. Verifique a conexão.'; render(); } }, 10000);
     const done = (k, s) => { if (!s.metadata.fromCache) loaded[k] = true; if (loaded.c && loaded.p && loaded.l && loaded.t) clearTimeout(timer); };
+    const coBtn = document.getElementById('co-btn');
+    if (isAdmin) { coBtn.hidden = false; coBtn.onclick = () => { logoDraft = undefined; go('company'); }; }
+    db.doc('settings/company').onSnapshot((s) => {
+      company = s.exists ? s.data() : null;
+      document.getElementById('brand').textContent = company?.name || 'Manutenção de Impressoras';
+    }, () => {});
     db.collection('customers').onSnapshot((s) => { customers = s.docs.map((d) => ({ ...d.data(), id: d.id })); done('c', s); refresh(); }, onErr);
     db.collection('printers').onSnapshot((s) => { printers = s.docs.map((d) => ({ ...d.data(), id: d.id })); done('p', s); refresh(); }, onErr);
     db.collection('maintenances').onSnapshot((s) => { legacy = s.docs.map((d) => ({ ...d.data(), id: d.id, _key: 'L|' + d.id })); done('l', s); refresh(); }, onErr);
