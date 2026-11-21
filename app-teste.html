@@ -102,6 +102,15 @@ legend { font-weight: 600; padding: 0 4px; }
 .bar > span { display: block; height: 100%; background: var(--accent); }
 .notice { background: var(--chip); border-radius: 10px; padding: 10px 12px; font-size: .9rem; }
 .notice.bad { color: var(--bad); }
+/* Janela de confirmação de exclusão */
+.modal-bg { position: fixed; inset: 0; z-index: 20; background: rgb(10 16 22 / .55); display: flex; align-items: center; justify-content: center;
+  padding-block: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-bottom, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.modal { background: var(--surface); color: var(--fg); border-radius: 14px; width: 100%; max-width: 420px; padding: 18px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 12px 40px rgb(0 0 0 / .3); }
+.modal h2 { font-size: 1.1rem; color: var(--bad); }
+.modal ul { margin: 0; padding-left: 20px; font-size: .92rem; }
+.cust-li { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.cust-li .item { width: 100%; }
 .empty { text-align: center; padding: 28px 12px; color: var(--muted); display: flex; flex-direction: column; gap: 12px; align-items: center; }
 
 /* Relatório de visita */
@@ -539,7 +548,9 @@ a.btn { text-decoration: none; display: inline-block; }
         <div id="err"></div>
         <button class="btn" id="save">Salvar</button>
         <button class="btn ghost" type="button" id="cancel">Cancelar</button>
-      </form>`;
+      </form>
+      ${companyPwPanel()}`;
+    bindCompanyPw();
     document.getElementById('e-name').oninput = (e) => (document.getElementById('pv-name').textContent = e.target.value || 'Nome da empresa');
     document.getElementById('cancel').onclick = () => { logoDraft = undefined; go('customers'); };
     const rm = document.getElementById('e-rmlogo');
@@ -591,6 +602,107 @@ a.btn { text-decoration: none; display: inline-block; }
     });
   }
 
+  // ---------- SENHA DE EXCLUSÃO ----------
+  // Guardada como hash SHA-256 com "sal" em secure/delete, que só administradores leem.
+  let deleteLock = null; // { salt, hash } ou null
+  async function hashPw(pw, salt) {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(salt + '|' + pw));
+    return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
+  }
+  async function checkPw(pw) { return !!deleteLock && (await hashPw(pw, deleteLock.salt)) === deleteLock.hash; }
+
+  function openModal(html) {
+    closeModal();
+    const bg = document.createElement('div');
+    bg.className = 'modal-bg'; bg.id = 'modal';
+    bg.innerHTML = `<div class="modal" role="dialog" aria-modal="true">${html}</div>`;
+    bg.addEventListener('click', (e) => { if (e.target === bg) closeModal(); });
+    document.body.appendChild(bg);
+    return bg;
+  }
+  function closeModal() { document.getElementById('modal')?.remove(); }
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+
+  function confirmDeleteCustomer(c) {
+    if (!c || !isAdmin) return;
+    const ps = printersOf(c.id);
+    const nRep = ps.reduce((s, p) => s + maintsOf(p.id).length, 0);
+    if (!deleteLock) {
+      const bg = openModal(`<h2>Senha de exclusão não definida</h2>
+        <p>Para excluir clientes, um administrador precisa primeiro criar a senha de exclusão na tela <b>Empresa</b>.</p>
+        <button class="btn" id="md-go">Definir senha agora</button><button class="btn ghost" id="md-cancel">Cancelar</button>`);
+      bg.querySelector('#md-go').onclick = () => { closeModal(); logoDraft = undefined; go('company'); };
+      bg.querySelector('#md-cancel').onclick = closeModal;
+      return;
+    }
+    const bg = openModal(`<h2>Excluir cliente</h2>
+      <p>Você vai excluir <b>${esc(c.name)}</b>. Isso não pode ser desfeito.</p>
+      ${ps.length ? `<p class="muted">Também serão apagados:</p><ul><li>${ps.length} impressora${ps.length > 1 ? 's' : ''} (${esc(ps.map((p) => p.serial).join(', '))})</li><li>${nRep} relatório${nRep === 1 ? '' : 's'} de visita</li></ul>` : '<p class="muted">Este cliente não tem impressoras.</p>'}
+      <form id="md-f">
+        <label>Senha de exclusão<input id="md-pw" type="password" autocomplete="off" required></label>
+        <div id="md-err"></div>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:12px">
+          <button class="btn danger armed" id="md-ok">Excluir definitivamente</button>
+          <button class="btn ghost" type="button" id="md-cancel">Cancelar</button>
+        </div>
+      </form>`);
+    const pw = bg.querySelector('#md-pw'); pw.focus();
+    const err = (t) => (bg.querySelector('#md-err').innerHTML = `<div class="notice bad">${esc(t)}</div>`);
+    bg.querySelector('#md-cancel').onclick = closeModal;
+    bg.querySelector('#md-f').onsubmit = async (ev) => {
+      ev.preventDefault();
+      const ok = bg.querySelector('#md-ok');
+      ok.disabled = true;
+      if (!(await checkPw(pw.value))) { ok.disabled = false; pw.select(); return err('Senha incorreta.'); }
+      ok.textContent = 'Excluindo…';
+      try {
+        for (const p of ps) {
+          for (const m of maintsOf(p.id)) await maintRef(m._key).delete();
+          await db.collection('printers').doc(p.id).delete();
+        }
+        await db.collection('customers').doc(c.id).delete();
+        closeModal();
+        go('customers');
+      } catch (e) { ok.disabled = false; ok.textContent = 'Excluir definitivamente'; err(dbErr(e)); }
+    };
+  }
+
+  function companyPwPanel() {
+    return `<section class="panel" id="pw-panel">
+      <h2>Senha de exclusão</h2>
+      <p class="muted">Pedida sempre que um administrador for excluir um cliente. ${deleteLock ? 'Uma senha já está definida.' : '<b>Ainda não definida.</b>'}</p>
+      <form id="pw-f">
+        ${deleteLock ? '<label>Senha atual<input id="pw-cur" type="password" autocomplete="off" required></label>' : ''}
+        <div class="two">
+          <label>Nova senha<input id="pw-new" type="password" autocomplete="new-password" minlength="4" required></label>
+          <label>Repita a nova senha<input id="pw-new2" type="password" autocomplete="new-password" required></label>
+        </div>
+        <div id="pw-err"></div>
+        <button class="btn" id="pw-save">${deleteLock ? 'Alterar senha' : 'Definir senha'}</button>
+      </form>
+    </section>`;
+  }
+  function bindCompanyPw() {
+    const f = document.getElementById('pw-f');
+    const msg = (t, bad = true) => (document.getElementById('pw-err').innerHTML = `<div class="notice ${bad ? 'bad' : ''}">${esc(t)}</div>`);
+    f.onsubmit = async (ev) => {
+      ev.preventDefault();
+      const nw = document.getElementById('pw-new').value, nw2 = document.getElementById('pw-new2').value;
+      if (deleteLock && !(await checkPw(document.getElementById('pw-cur').value))) return msg('A senha atual está incorreta.');
+      if (nw.length < 4) return msg('A senha precisa ter pelo menos 4 caracteres.');
+      if (nw !== nw2) return msg('As duas senhas não são iguais.');
+      const salt = Array.from(crypto.getRandomValues(new Uint8Array(16))).map((b) => b.toString(16).padStart(2, '0')).join('');
+      document.getElementById('pw-save').disabled = true;
+      try {
+        await db.doc('secure/delete').set({ salt, hash: await hashPw(nw, salt), updatedAt: new Date().toISOString() });
+        deleteLock = { salt, hash: await hashPw(nw, salt) };
+        f.reset(); keepFields();
+        document.getElementById('pw-panel').outerHTML = companyPwPanel(); bindCompanyPw(); restoreFields();
+        msg('Senha salva.', false);
+      } catch (e) { document.getElementById('pw-save').disabled = false; msg(dbErr(e)); }
+    };
+  }
+
   function viewCustomers() {
     const t = state.q.trim().toLowerCase();
     const rows = customers.filter((c) => !t || [c.name, c.doc, c.phone, c.city, c.contact].some((v) => (v || '').toLowerCase().includes(t))).sort(byName);
@@ -603,12 +715,13 @@ a.btn { text-decoration: none; display: inline-block; }
         : rows.length === 0 ? '<p class="muted">Nada encontrado.</p>'
         : `<ul class="list">${rows.map((c) => {
             const n = printersOf(c.id).length;
-            return `<li><button class="item" data-id="${c.id}">
+            return `<li class="cust-li"><button class="item" data-id="${c.id}">
               <div class="row"><strong>${esc(c.name)}</strong><span class="chip">${n} impressora${n === 1 ? '' : 's'}</span></div>
               <div class="meta">${c.phone ? `<span>${esc(c.phone)}</span>` : ''}${c.city ? `<span>${esc(c.city)}</span>` : ''}${c.contact ? `<span>Contato: ${esc(c.contact)}</span>` : ''}</div>
-            </button></li>`;
+            </button>${isAdmin ? `<button class="link bad" data-delc="${c.id}">Excluir</button>` : ''}</li>`;
           }).join('')}</ul>`}`;
     bindSearch('q', 'q', viewCustomers);
+    $view.querySelectorAll('[data-delc]').forEach((b) => (b.onclick = () => confirmDeleteCustomer(customers.find((c) => c.id === b.dataset.delc))));
     for (const id of ['new', 'new2']) { const b = document.getElementById(id); if (b) b.onclick = () => go('customerForm', null, { view: 'customers' }); }
     $view.querySelectorAll('.item').forEach((b) => (b.onclick = () => go('customer', b.dataset.id)));
   }
@@ -631,8 +744,10 @@ a.btn { text-decoration: none; display: inline-block; }
         ${!c.doc && !c.phone && !c.email && !c.address && !c.city && !c.contact && !c.notes ? '<p class="muted">Nenhum dado de contato cadastrado.</p>' : ''}
       </section>
       <div class="head"><h2>Impressoras (${ps.length})</h2>${isAdmin ? '<button class="btn sm" id="addp">+ Adicionar impressora</button>' : ''}</div>
-      ${ps.length === 0 ? '<p class="muted">Nenhuma impressora neste cliente.</p>' : printerList(ps, false)}`;
+      ${ps.length === 0 ? '<p class="muted">Nenhuma impressora neste cliente.</p>' : printerList(ps, false)}
+      ${isAdmin ? '<button class="btn danger" id="delc">Excluir cliente</button>' : ''}`;
     document.getElementById('back').onclick = () => go('customers');
+    const dc = document.getElementById('delc'); if (dc) dc.onclick = () => confirmDeleteCustomer(c);
     const e = document.getElementById('edit'); if (e) e.onclick = () => go('customerForm', c.id, { view: 'customer', id: c.id });
     const a = document.getElementById('addp'); if (a) a.onclick = () => { state.newFor = c.id; go('printerForm', null, { view: 'customer', id: c.id }); };
     bindPrinterItems({ view: 'customer', id: c.id });
@@ -671,13 +786,7 @@ a.btn { text-decoration: none; display: inline-block; }
       } catch (err) { document.getElementById('save').disabled = false; showErr(dbErr(err)); }
     };
     const del = document.getElementById('del');
-    if (del) {
-      if (printersOf(c.id).length) {
-        del.onclick = () => showErr('Este cliente ainda tem impressoras. Exclua as impressoras ou passe-as para outro cliente antes de excluir o cliente.');
-      } else {
-        arm(del, 'Toque de novo para excluir o cliente', async () => { await db.collection('customers').doc(c.id).delete(); go('customers'); });
-      }
-    }
+    if (del) del.onclick = () => confirmDeleteCustomer(c);
   }
 
   // ---------- IMPRESSORAS: lista ----------
@@ -1035,6 +1144,7 @@ a.btn { text-decoration: none; display: inline-block; }
     const done = (k, s) => { if (!s.metadata.fromCache) loaded[k] = true; if (loaded.c && loaded.p && loaded.l && loaded.t) clearTimeout(timer); };
     const coBtn = document.getElementById('co-btn');
     if (isAdmin) { coBtn.hidden = false; coBtn.onclick = () => { logoDraft = undefined; go('company'); }; }
+    if (isAdmin) db.doc('secure/delete').onSnapshot((s) => { deleteLock = s.exists ? s.data() : null; }, () => {});
     db.doc('settings/company').onSnapshot((s) => {
       company = s.exists ? s.data() : null;
       document.getElementById('brand').textContent = company?.name || 'Manutenção de Impressoras';
