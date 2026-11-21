@@ -123,6 +123,9 @@ legend { font-weight: 600; padding: 0 4px; }
   .part-row.life .desc { grid-column: 1 / -1; grid-row: 2; }
   .part-row.life .lf { grid-column: 1 / -1; grid-row: 3; }
 }
+.lf-lab { gap: 3px; font-size: .8rem; color: var(--muted); }
+.lf-t { display: none; }
+@media (max-width: 500px) { .lf-t { display: block; } }
 .part-head { display: grid; grid-template-columns: 1fr 1.5fr 4.2rem 6.5rem 2.6rem; gap: 6px; font-size: .78rem; color: var(--muted); }
 @media (max-width: 500px) { .part-head { display: none; } }
 
@@ -195,6 +198,21 @@ a.btn { text-decoration: none; display: inline-block; }
   const $view = document.getElementById('view');
   const nf = new Intl.NumberFormat('pt-BR');
   const fmt = (n) => (n == null || isNaN(n) ? '—' : nf.format(n));
+  // Número inteiro digitado livre: aceita 850000, 850.000 ou 850 000
+  const intVal = (s) => Number(String(s ?? '').replace(/\D/g, '')) || 0;
+  // Formata com ponto de milhar enquanto digita, mantendo o cursor no lugar certo
+  document.addEventListener('input', (e) => {
+    const el = e.target;
+    if (!el.classList?.contains('int')) return;
+    const digitsBefore = el.value.slice(0, el.selectionStart).replace(/\D/g, '').length;
+    const raw = el.value.replace(/\D/g, '').replace(/^0+(?=\d)/, '');
+    const out = raw ? nf.format(Number(raw)) : '';
+    if (out === el.value) return;
+    el.value = out;
+    let pos = 0, seen = 0;
+    while (pos < out.length && seen < digitsBefore) { if (/\d/.test(out[pos])) seen++; pos++; }
+    try { el.setSelectionRange(pos, pos); } catch {}
+  }, true);
   const fdate = (d) => (d ? d.slice(0, 10).split('-').reverse().join('/') : '—');
   const today = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -949,7 +967,7 @@ a.btn { text-decoration: none; display: inline-block; }
         <label>Número de série *<input id="f-serial" required autocapitalize="characters" value="${esc(p?.serial)}"></label>
         <label>Modelo<input id="f-model" placeholder="Ex.: Kyocera M2040dn" value="${esc(p?.model)}"></label>
         <label>Local<input id="f-location" placeholder="Ex.: Recepção, 2º andar" value="${esc(p?.location)}"></label>
-        <label>Contador na instalação<input id="f-install" type="number" inputmode="numeric" min="0" value="${p?.installCounter ?? 0}"></label>
+        <label>Contador na instalação<input id="f-install" class="int" type="text" inputmode="numeric" autocomplete="off" value="${fmt(p?.installCounter ?? 0)}"></label>
         <div id="err"></div>
         <button class="btn" id="save">Salvar</button>
         <button class="btn ghost" type="button" id="cancel">Cancelar</button>
@@ -966,7 +984,7 @@ a.btn { text-decoration: none; display: inline-block; }
         serial,
         model: document.getElementById('f-model').value.trim(),
         location: document.getElementById('f-location').value.trim(),
-        installCounter: Math.max(0, Number(document.getElementById('f-install').value) || 0),
+        installCounter: intVal(document.getElementById('f-install').value),
         createdAt: p?.createdAt || new Date().toISOString(),
       };
       document.getElementById('save').disabled = true;
@@ -1000,7 +1018,7 @@ a.btn { text-decoration: none; display: inline-block; }
           <label>Data<input id="m-date" type="date" required value="${editing?.date || today()}"></label>
           <label>Técnico<input id="m-tech" autocomplete="name" value="${esc(editing ? editing.technician : (myName || lsGet('tecnico')))}"></label>
         </div>
-        <label>Contador atual *<input id="m-counter" type="number" inputmode="numeric" min="0" required value="${editing?.counter ?? ''}">
+        <label>Contador atual *<input id="m-counter" class="int" type="text" inputmode="numeric" autocomplete="off" required value="${editing ? fmt(editing.counter) : ''}">
           <span class="hint" id="m-delta">Último contador registrado: <span class="num">${fmt(last)}</span></span></label>
         <label>Causa *<textarea id="m-cause" rows="2" required placeholder="Motivo da visita. Ex.: papel enroscando, manchas na impressão, manutenção preventiva">${esc(editing?.cause)}</textarea></label>
         <label>Serviço realizado<textarea id="m-summary" rows="3" placeholder="O que foi feito: limpeza, ajuste, troca de peças…">${esc(editing?.summary)}</textarea></label>
@@ -1027,12 +1045,12 @@ a.btn { text-decoration: none; display: inline-block; }
         <input placeholder="Código" list="known" autocapitalize="characters" data-i="${i}" data-k="code" value="${esc(pt.code)}" aria-label="Código da peça">
         <input class="desc" placeholder="Descrição" data-i="${i}" data-k="description" value="${esc(pt.description)}" aria-label="Descrição da peça">
         <input type="number" min="1" inputmode="numeric" data-i="${i}" data-k="qty" value="${pt.qty}" aria-label="Quantidade">
-        <input class="lf" type="number" min="0" step="1000" inputmode="numeric" placeholder="Vida útil (págs)" data-i="${i}" data-k="life" value="${pt.life || ''}" aria-label="Vida útil em páginas">
+        <label class="lf lf-lab"><span class="lf-t">Vida útil (páginas)</span><input class="int" type="text" inputmode="numeric" autocomplete="off" placeholder="Ex.: 850.000" data-i="${i}" data-k="life" value="${pt.life ? fmt(pt.life) : ''}" aria-label="Vida útil em páginas"></label>
         <button type="button" class="x" data-rm="${i}" aria-label="Remover peça">✕</button></div>`).join('');
       box.querySelectorAll('input').forEach((inp) => (inp.oninput = () => {
         const pt = parts[inp.dataset.i];
         const k = inp.dataset.k;
-        pt[k] = k === 'qty' ? Math.max(1, Number(inp.value) || 1) : k === 'life' ? Math.max(0, Number(inp.value) || 0) : inp.value;
+        pt[k] = k === 'qty' ? Math.max(1, Number(inp.value) || 1) : k === 'life' ? intVal(inp.value) : inp.value;
         if (k === 'code') {
           const d = known[inp.value.trim().toUpperCase()];
           const row = (kk) => box.querySelector(`[data-i="${inp.dataset.i}"][data-k="${kk}"]`);
@@ -1047,7 +1065,7 @@ a.btn { text-decoration: none; display: inline-block; }
     const cnt = document.getElementById('m-counter');
     const delta = document.getElementById('m-delta');
     cnt.oninput = () => {
-      const d = Number(cnt.value) - last;
+      const d = intVal(cnt.value) - last;
       delta.className = 'hint' + (cnt.value && d < 0 ? ' bad' : '');
       delta.innerHTML = `Último contador registrado: <span class="num">${fmt(last)}</span>` + (cnt.value ? ` · <span class="num">${d >= 0 ? '+' : ''}${fmt(d)}</span> páginas` + (d < 0 ? ' (menor que o último, confira)' : '') : '');
     };
@@ -1057,7 +1075,7 @@ a.btn { text-decoration: none; display: inline-block; }
     document.getElementById('cancel').onclick = back;
     document.getElementById('f').onsubmit = async (ev) => {
       ev.preventDefault();
-      const counter = Number(cnt.value);
+      const counter = intVal(cnt.value);
       if (counter < p.installCounter) return showErr(`O contador não pode ser menor que o da instalação (${fmt(p.installCounter)}).`);
       const save = document.getElementById('save');
       if (!editing && counter < last && save.dataset.armed !== '1') {
